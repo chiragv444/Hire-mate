@@ -195,3 +195,5 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 - CORS configured for frontend domains
 - Input validation with Pydantic
 - Error handling without exposing internals 
+
+Python Version: 3.11.13
