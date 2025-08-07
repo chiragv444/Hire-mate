@@ -4,6 +4,9 @@ FROM node:18-alpine AS builder
 # Set working directory
 WORKDIR /app
 
+# Copy root .env into this context
+COPY ../.env .env
+
 # Copy package files
 COPY package*.json ./
 COPY bun.lockb ./
