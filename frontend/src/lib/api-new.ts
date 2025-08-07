@@ -4,7 +4,7 @@ import { auth } from "@/lib/firebase";
 // New simplified API functions for the updated backend schema
 
 // Backend API configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL+"/api/v1" || "http://localhost:8000/api/v1";
 
 // Create an axios instance with default configuration
 const axiosInstance: AxiosInstance = axios.create({
