@@ -5,13 +5,13 @@ import { getStorage } from 'firebase/storage';
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDZKrVUiMjd4RdnIuarhyZQqHXGGtaVYGo",
-  authDomain: "hire-mate.firebaseapp.com",
-  projectId: "hire-mate",
-  storageBucket: "hire-mate.firebasestorage.app",
-  messagingSenderId: "458967927494",
-  appId: "1:458967927494:web:fbc3c215a4149fee51e5c7",
-  measurementId: "G-7EER97MK0X"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
@@ -36,4 +36,4 @@ googleProvider.setCustomParameters({
 googleProvider.addScope('email');
 googleProvider.addScope('profile');
 
-export default app; 
+export default app;

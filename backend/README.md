@@ -36,6 +36,7 @@ A FastAPI backend for the HireMate application that provides resume parsing, job
    - Create a Firebase project
    - Download service account key JSON file
    - Place it in the backend directory as `service-account-key.json`
+   - **IMPORTANT**: Add `service-account-key.json` to `.gitignore` to prevent committing sensitive credentials
 
 4. **Environment variables** (optional):
    Create a `.env` file with:

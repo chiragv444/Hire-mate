@@ -86,7 +86,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         //Fetch ID Token
         const token = await firebaseUser.getIdToken();
-        console.log('ID Token:', token);
         setIdToken(token);
         
         // Load or create user document
@@ -299,12 +298,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const shouldRedirectToOnboarding = () => {
     const shouldRedirect = userDocument && !userDocument.onboardingComplete;
-    console.log('Should redirect to onboarding:', shouldRedirect, {
-      userDocument: userDocument ? {
-        onboardingComplete: userDocument.onboardingComplete,
-        uid: userDocument.uid
-      } : null
-    });
     return shouldRedirect;
   };
 

@@ -10,7 +10,20 @@ cd <YOUR_PROJECT_NAME>
 # Step 3: Install the necessary dependencies.
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Set up environment variables for Firebase
+# Copy the example environment file
+cp ../.env.example .env
+
+# Edit .env file and add your Firebase configuration values:
+# VITE_FIREBASE_API_KEY=your_api_key_here
+# VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+# VITE_FIREBASE_PROJECT_ID=your_project_id
+# VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+# VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+# VITE_FIREBASE_APP_ID=your_app_id
+# VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+
+# Step 5: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
