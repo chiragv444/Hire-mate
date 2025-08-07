@@ -9,9 +9,9 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
+# Check if Docker Compose v2 is available
+if ! docker compose version &> /dev/null; then
+    echo "❌ Docker Compose (v2) is not available. Please install Docker Compose plugin."
     exit 1
 fi
 
@@ -38,17 +38,17 @@ fi
 
 # Build and start containers
 echo "🔨 Building Docker containers..."
-docker-compose build
+docker compose build
 
 echo "🚀 Starting HireMate services..."
-docker-compose up -d
+docker compose up -d
 
 # Wait for services to start
 echo "⏳ Waiting for services to start..."
 sleep 10
 
 # Check if services are running
-if docker-compose ps | grep -q "Up"; then
+if docker compose ps | grep -q "Up"; then
     echo "✅ HireMate is now running!"
     echo ""
     echo "🌐 Frontend: http://localhost:4000"
@@ -56,8 +56,8 @@ if docker-compose ps | grep -q "Up"; then
     echo "📚 API Documentation: http://localhost:8000/docs"
     echo "🔍 Health Check: http://localhost:8000/health"
     echo ""
-    echo "📋 To view logs: docker-compose logs -f"
-    echo "🛑 To stop: docker-compose down"
+    echo "📋 To view logs: docker compose logs -f"
+    echo "🛑 To stop: docker compose down"
 else
-    echo "❌ Failed to start services. Check logs with: docker-compose logs"
+    echo "❌ Failed to start services. Check logs with: docker compose logs"
 fi
