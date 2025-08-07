@@ -5,7 +5,7 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 
 # Copy root .env into this context
-COPY ../.env .env
+COPY .env .env
 
 # Copy package files
 COPY package*.json ./
