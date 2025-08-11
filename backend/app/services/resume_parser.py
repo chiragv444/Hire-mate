@@ -13,6 +13,7 @@ import pdfplumber
 import fitz  # PyMuPDF
 from textblob import TextBlob
 from fuzzywuzzy import fuzz
+from .enhanced_resume_parser import enhanced_resume_parser
 
 # Download required NLTK data
 try:
@@ -114,18 +115,50 @@ class ResumeParser:
         }
     
     async def parse_resume(self, file_path: str, file_type: str) -> Dict[str, Any]:
-        """Parse resume file and extract structured data"""
+        """Parse resume file and extract structured data using enhanced parser"""
         try:
-            # Extract raw text
-            raw_text = await self._extract_text(file_path, file_type)
+            # Read file content
+            async with aiofiles.open(file_path, 'rb') as f:
+                file_content = await f.read()
             
-            # Clean and process text
+            # Use enhanced resume parser if available
+            if enhanced_resume_parser:
+                try:
+                    parsed_data = enhanced_resume_parser.parse_resume(file_content, file_type)
+                    
+                    # Ensure skills are in the correct format
+                    if isinstance(parsed_data.get('skills'), list):
+                        # Convert old list format to new dict format
+                        old_skills = parsed_data['skills']
+                        parsed_data['skills'] = {
+                            'technical': old_skills,
+                            'soft': [],
+                            'domain': []
+                        }
+                    elif not isinstance(parsed_data.get('skills'), dict):
+                        # Fallback to empty skills structure
+                        parsed_data['skills'] = {
+                            'technical': [],
+                            'soft': [],
+                            'domain': []
+                        }
+                    
+                    return parsed_data
+                    
+                except Exception as e:
+                    print(f"Enhanced parser failed, falling back to basic parser: {e}")
+                    # Fall through to basic parser
+            
+            # Fallback to basic parsing
+            raw_text = await self._extract_text(file_path, file_type)
             cleaned_text = self._clean_text(raw_text)
             
-            # Parse different sections
+            # Use enhanced basic skills extraction
+            basic_skills = self._extract_skills_enhanced(cleaned_text)
+            
             parsed_data = {
                 'raw_text': cleaned_text,
-                'skills': self._extract_skills(cleaned_text),
+                'skills': basic_skills,
                 'experience': self._extract_experience(cleaned_text),
                 'education': self._extract_education(cleaned_text),
                 'contact_info': self._extract_contact_info(cleaned_text),
@@ -247,62 +280,77 @@ class ResumeParser:
         text = re.sub(r'\n+', '\n', text)
         return text.strip()
     
-    def _extract_skills(self, text: str) -> List[str]:
-        """Extract skills from resume text using advanced NLP and fuzzy matching"""
-        skills = []
+    def _extract_skills_enhanced(self, text: str) -> Dict[str, List[str]]:
+        """Enhanced skills extraction for all professions"""
+        skills = {'technical': [], 'soft': [], 'domain': []}
         text_lower = text.lower()
         
-        # Flatten all skills for easier processing
-        all_skills = []
-        for category, skill_list in self.skills_keywords.items():
-            all_skills.extend(skill_list)
+        # Comprehensive skill categories for all professions
+        skill_categories = {
+            'technical': {
+                # Programming & Software
+                'python', 'javascript', 'java', 'react', 'node.js', 'sql', 'html', 'css',
+                'aws', 'docker', 'kubernetes', 'git', 'mongodb', 'postgresql', 'redis',
+                'angular', 'vue.js', 'typescript', 'c++', 'c#', '.net', 'php', 'ruby',
+                # Design & Creative Software
+                'photoshop', 'illustrator', 'indesign', 'figma', 'sketch', 'autocad',
+                'solidworks', 'maya', 'blender', 'after effects', 'premiere pro',
+                # Business & Office Software
+                'excel', 'powerpoint', 'word', 'outlook', 'sharepoint', 'teams',
+                'salesforce', 'hubspot', 'quickbooks', 'sap', 'oracle', 'tableau',
+                # Medical & Healthcare Software
+                'epic', 'cerner', 'meditech', 'allscripts', 'emr', 'ehr', 'pacs',
+                # Engineering & Scientific
+                'matlab', 'labview', 'plc', 'scada', 'cnc', 'cad', 'fem analysis',
+                'spss', 'r', 'stata', 'minitab', 'origin'
+            },
+            'soft': {
+                'communication', 'leadership', 'teamwork', 'problem solving',
+                'time management', 'organization', 'critical thinking', 'creativity',
+                'adaptability', 'collaboration', 'presentation', 'negotiation',
+                'customer service', 'project management', 'analytical thinking',
+                'decision making', 'conflict resolution', 'mentoring', 'coaching',
+                'public speaking', 'interpersonal skills', 'emotional intelligence'
+            },
+            'domain': {
+                # Healthcare
+                'patient care', 'clinical research', 'medical coding', 'hipaa',
+                'pharmacology', 'anatomy', 'physiology', 'pathology', 'nursing',
+                'surgery', 'radiology', 'cardiology', 'oncology', 'pediatrics',
+                # Finance & Accounting
+                'financial analysis', 'risk management', 'compliance', 'audit',
+                'investment', 'portfolio management', 'derivatives', 'forex',
+                'accounting', 'bookkeeping', 'tax preparation', 'budgeting',
+                # Legal
+                'litigation', 'contract law', 'intellectual property', 'compliance',
+                'corporate law', 'family law', 'criminal law', 'real estate law',
+                # Education
+                'curriculum development', 'lesson planning', 'assessment',
+                'classroom management', 'special education', 'esl', 'stem',
+                # Marketing & Sales
+                'digital marketing', 'seo', 'sem', 'social media', 'content marketing',
+                'brand management', 'market research', 'analytics', 'sales',
+                # Engineering & Manufacturing
+                'process improvement', 'quality assurance', 'lean manufacturing',
+                'six sigma', 'iso standards', 'regulatory compliance', 'safety management'
+            }
+        }
         
-        # Method 1: Exact matching
-        for skill in all_skills:
-            if skill.lower() in text_lower:
-                skills.append(skill.title())
+        # Extract skills from each category
+        for category, skill_set in skill_categories.items():
+            for skill in skill_set:
+                if skill.lower() in text_lower:
+                    skills[category].append(skill.title())
         
-        # Method 2: Fuzzy matching for variations
-        words = re.findall(r'\b\w+\b', text_lower)
-        for word in words:
-            if len(word) > 2:  # Skip very short words
-                for skill in all_skills:
-                    # Use fuzzy matching for skill variations
-                    if fuzz.ratio(word, skill.lower()) > 85:  # 85% similarity
-                        skills.append(skill.title())
+        # Remove duplicates while preserving order
+        for category in skills:
+            skills[category] = list(dict.fromkeys(skills[category]))
         
-        # Method 3: Use spaCy for named entity recognition
-        try:
-            doc = self.nlp(text)
-            for ent in doc.ents:
-                if ent.label_ in ['ORG', 'PRODUCT', 'LANGUAGE', 'PERSON']:
-                    # Check if the entity might be a technology/skill
-                    entity_text = ent.text.lower()
-                    for skill in all_skills:
-                        if fuzz.ratio(entity_text, skill.lower()) > 80:
-                            skills.append(skill.title())
-        except Exception as e:
-            print(f"spaCy processing failed: {e}")
-        
-        # Method 4: Pattern-based extraction for common skill formats
-        skill_patterns = [
-            r'\b(\w+)\s+(?:programming|development|framework|library)\b',
-            r'\bexperience\s+(?:with|in)\s+(\w+)\b',
-            r'\bproficient\s+(?:in|with)\s+(\w+)\b',
-            r'\bskilled\s+(?:in|with)\s+(\w+)\b'
-        ]
-        
-        for pattern in skill_patterns:
-            matches = re.finditer(pattern, text_lower)
-            for match in matches:
-                potential_skill = match.group(1)
-                for skill in all_skills:
-                    if fuzz.ratio(potential_skill, skill.lower()) > 80:
-                        skills.append(skill.title())
-        
-        # Remove duplicates and return sorted list
-        unique_skills = list(set(skills))
-        return sorted(unique_skills)
+        return skills
+    
+    def _extract_skills(self, text: str) -> Dict[str, List[str]]:
+        """Legacy method - now calls enhanced extraction"""
+        return self._extract_skills_enhanced(text)
     
     def _extract_experience(self, text: str) -> List[Dict[str, Any]]:
         """Extract work experience from resume"""

@@ -144,12 +144,30 @@ export async function registerUser(
 export async function resetPassword(
   email: string
 ): Promise<{ success: boolean; message: string }> {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  return {
-    success: true,
-    message: "Password reset link sent to your email",
-  };
+  try {
+    const { sendPasswordResetEmail } = await import('firebase/auth');
+    const { auth } = await import('@/lib/firebase');
+    
+    await sendPasswordResetEmail(auth, email);
+    
+    return {
+      success: true,
+      message: "Password reset link sent to your email",
+    };
+  } catch (error: any) {
+    console.error('Password reset error:', error);
+    
+    let errorMessage = 'Failed to send reset link. Please try again.';
+    if (error.code === 'auth/user-not-found') {
+      errorMessage = 'No account found with this email address.';
+    } else if (error.code === 'auth/invalid-email') {
+      errorMessage = 'Please enter a valid email address.';
+    } else if (error.code === 'auth/too-many-requests') {
+      errorMessage = 'Too many requests. Please wait a few minutes before trying again.';
+    }
+    
+    throw new Error(errorMessage);
+  }
 }
 
 // Onboarding API
@@ -158,6 +176,55 @@ export async function saveOnboardingData(
 ): Promise<{ success: boolean }> {
   await new Promise((resolve) => setTimeout(resolve, 1500));
   return { success: true };
+}
+
+// Onboarding Resume Upload API
+export async function uploadOnboardingResume(
+  file: File
+): Promise<{ success: boolean; resume?: any; error?: string }> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await axiosInstance.post('/onboarding/upload-resume', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    return {
+      success: true,
+      resume: response.data.resume,
+    };
+  } catch (error: any) {
+    console.error('Onboarding resume upload error:', error);
+    return {
+      success: false,
+      error: error.response?.data?.detail || 'Failed to upload resume',
+    };
+  }
+}
+
+// Get default resume from onboarding
+export async function getOnboardingDefaultResume(): Promise<{ 
+  success: boolean; 
+  resume?: any; 
+  error?: string 
+}> {
+  try {
+    const response = await axiosInstance.get('/onboarding/default-resume');
+    
+    return {
+      success: true,
+      resume: response.data.resume,
+    };
+  } catch (error: any) {
+    console.error('Get default resume error:', error);
+    return {
+      success: false,
+      error: error.response?.data?.detail || 'Failed to get default resume',
+    };
+  }
 }
 
 // Resume APIs - New Analysis Flow

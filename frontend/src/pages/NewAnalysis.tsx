@@ -26,6 +26,7 @@ import {
   getDefaultResume,
   JobDescriptionData 
 } from '@/lib/api-new';
+import { getOnboardingDefaultResume, uploadOnboardingResume } from '@/lib/api';
 
 type AnalysisStep = 'job-input' | 'resume-selection' | 'processing';
 
@@ -67,6 +68,15 @@ const NewAnalysis = () => {
 
   const loadDefaultResume = async () => {
     try {
+      // First try to get default resume from onboarding
+      const onboardingResult = await getOnboardingDefaultResume();
+      if (onboardingResult.success && onboardingResult.resume) {
+        setDefaultResume(onboardingResult.resume);
+        setSelectedResumeId(onboardingResult.resume.id);
+        return;
+      }
+      
+      // Fallback to analytics default resume
       const result = await getDefaultResume();
       if (result.success && result.resume) {
         setDefaultResume(result.resume);

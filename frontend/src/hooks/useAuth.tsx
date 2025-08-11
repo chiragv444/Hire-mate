@@ -71,7 +71,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const createUserDocument = async (firebaseUser: FirebaseUser) => {
     try {
       const userData = convertFirebaseUser(firebaseUser);
-      await UserService.createOrUpdateUser(userData);
+      await UserService.createOrUpdateUser(firebaseUser.uid, {
+        email: userData.email,
+        displayName: userData.displayName,
+        photoURL: userData.photoURL,
+        onboardingComplete: false
+      });
       await loadUserDocument(firebaseUser.uid);
     } catch (error) {
       console.error('Error creating user document:', error);
@@ -127,23 +132,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch (error: any) {
       let errorMessage = 'Login failed';
+      let errorTitle = 'Login failed';
+      
       if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email address';
+        errorTitle = 'Account not found';
+        errorMessage = 'No account found with this email address. Please check your email or sign up for a new account.';
       } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password';
+        errorTitle = 'Incorrect password';
+        errorMessage = 'The password you entered is incorrect. Please try again or use "Forgot password?" to reset it.';
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address';
+        errorTitle = 'Invalid email';
+        errorMessage = 'Please enter a valid email address.';
+      } else if (error.code === 'auth/invalid-credential') {
+        errorTitle = 'Invalid credentials';
+        errorMessage = 'The email or password you entered is incorrect. Please check your credentials and try again.';
       } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many failed attempts. Please try again later';
+        errorTitle = 'Too many attempts';
+        errorMessage = 'Too many failed login attempts. Please wait a few minutes before trying again.';
       } else if (error.code === 'auth/user-disabled') {
-        errorMessage = 'This account has been disabled';
+        errorTitle = 'Account disabled';
+        errorMessage = 'This account has been disabled. Please contact support for assistance.';
       } else if (error.code === 'auth/operation-not-allowed') {
+        errorTitle = 'Sign-in disabled';
         errorMessage = 'Email/password sign-in is not enabled. Please contact support.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorTitle = 'Connection error';
+        errorMessage = 'Network error. Please check your internet connection and try again.';
       }
       
       console.error('Login error:', error);
       toast({
-        title: "Login failed",
+        title: errorTitle,
         description: errorMessage,
         variant: "destructive",
       });

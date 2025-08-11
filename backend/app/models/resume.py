@@ -18,7 +18,7 @@ class ResumeMetadata(BaseModel):
 class ParsedResumeData(BaseModel):
     """Parsed resume content"""
     raw_text: str
-    skills: List[str] = []
+    skills: Dict[str, List[str]] = Field(default_factory=lambda: {"technical": [], "soft": [], "domain": []})
     experience: List[Dict[str, Any]] = []
     education: List[Dict[str, Any]] = []
     contact_info: Dict[str, str] = {}
@@ -42,5 +42,5 @@ class ResumePreviewResponse(BaseModel):
     filename: str
     file_size: int
     parsed_text: str
-    skills: List[str]
+    skills: Dict[str, List[str]] = Field(default_factory=lambda: {"technical": [], "soft": [], "domain": []})
     error: Optional[str] = None 

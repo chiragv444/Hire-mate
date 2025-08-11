@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
 import { OnboardingData } from '@/types';
-import { OnboardingService } from '@/lib/firestore';
+import { OnboardingService, createAnalysisSession, uploadResumeForAnalysis, setDefaultResume } from '@/lib/firestore';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -136,6 +136,34 @@ const Onboarding = () => {
 
     setIsLoading(true);
     try {
+      // If user uploaded a resume during onboarding, save it as their default resume
+      if (onboardingData.resumeFile) {
+        try {
+          // Create an analysis session for the resume
+          const analysisId = await createAnalysisSession(user.uid, onboardingData.resumeFile.name);
+          
+          // Upload the resume file
+          await uploadResumeForAnalysis(user.uid, analysisId, onboardingData.resumeFile, (progress) => {
+            console.log('Resume upload progress:', progress);
+          });
+          
+          // Set this resume as the user's default
+          await setDefaultResume(user.uid, analysisId);
+          
+          toast({
+            title: "Resume uploaded!",
+            description: "Your resume has been saved as your default resume.",
+          });
+        } catch (resumeError) {
+          console.error('Resume upload error:', resumeError);
+          toast({
+            title: "Resume upload failed",
+            description: "Your onboarding was completed, but we couldn't save your resume. You can upload it later.",
+            variant: "destructive",
+          });
+        }
+      }
+      
       // Save onboarding data to Firestore
       await OnboardingService.completeOnboarding(user.uid, onboardingData as OnboardingData);
       
