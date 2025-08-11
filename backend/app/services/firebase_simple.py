@@ -4,7 +4,10 @@ from firebase_admin.exceptions import FirebaseError
 from typing import Optional, Dict, Any, List
 import json
 import os
+import uuid
+import shutil
 from datetime import datetime
+from pathlib import Path
 from ..core.config import settings
 
 class SimplifiedFirebaseService:
@@ -48,6 +51,29 @@ class SimplifiedFirebaseService:
                 return json.load(f)
         
         return None
+    
+    def upload_file(self, file_content: bytes, filename: str, content_type: str) -> str:
+        """Upload file to local storage and return the file path"""
+        try:
+            # Create uploads directory if it doesn't exist
+            uploads_dir = Path("uploads/resumes")
+            uploads_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate unique filename
+            file_extension = Path(filename).suffix
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+            file_path = uploads_dir / unique_filename
+            
+            # Save file to local storage
+            with open(file_path, 'wb') as f:
+                f.write(file_content)
+            
+            # Return relative path for storage in database
+            return str(file_path)
+            
+        except Exception as e:
+            print(f"Error uploading file: {e}")
+            raise
     
     def verify_token(self, id_token: str) -> Optional[Dict[str, Any]]:
         """Verify Firebase ID token and return user info"""
@@ -266,6 +292,46 @@ class SimplifiedFirebaseService:
         except Exception as e:
             print(f"Error deleting resume: {e}")
             return False
+    
+    # Generic Document Methods (for onboarding API compatibility)
+    
+    def create_document(self, collection_name: str, document_data: Dict[str, Any]) -> str:
+        """Create a new document in any collection"""
+        try:
+            document_data['created_at'] = firestore.SERVER_TIMESTAMP
+            document_data['updated_at'] = firestore.SERVER_TIMESTAMP
+            
+            _, doc_ref = self.db.collection(collection_name).add(document_data)
+            return doc_ref.id
+        except Exception as e:
+            print(f"Error creating document in {collection_name}: {e}")
+            raise
+    
+    def update_document(self, collection_name: str, document_id: str, update_data: Dict[str, Any]) -> bool:
+        """Update a document in any collection"""
+        try:
+            doc_ref = self.db.collection(collection_name).document(document_id)
+            update_data['updated_at'] = firestore.SERVER_TIMESTAMP
+            doc_ref.update(update_data)
+            return True
+        except Exception as e:
+            print(f"Error updating document in {collection_name}: {e}")
+            return False
+    
+    def get_document(self, collection_name: str, document_id: str) -> Optional[Dict[str, Any]]:
+        """Get a document from any collection"""
+        try:
+            doc_ref = self.db.collection(collection_name).document(document_id)
+            doc = doc_ref.get()
+            
+            if doc.exists:
+                data = doc.to_dict()
+                data['id'] = doc.id
+                return data
+            return None
+        except Exception as e:
+            print(f"Error getting document from {collection_name}: {e}")
+            return None
 
 # Initialize simplified Firebase service
 simplified_firebase_service = SimplifiedFirebaseService()

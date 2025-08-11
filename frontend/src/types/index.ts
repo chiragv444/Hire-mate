@@ -18,6 +18,7 @@ export interface OnboardingData {
   userGoals: string[];
   userNote?: string;
   resumeFile?: File;
+  resumeData?: any;
 }
 
 export interface JobDescription {
