@@ -173,6 +173,27 @@ export async function addExistingResumeToAnalytics(
   }
 }
 
+export async function linkDefaultResumeToAnalytics(
+  analyticsId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiRequest('/analytics/link-default-resume', {
+      method: 'POST',
+      data: {
+        analytics_id: analyticsId,
+        resume_id: '', // Not needed for default resume linking
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to link default resume to analytics',
+    };
+  }
+}
+
 export async function performAnalysis(
   analyticsId: string
 ): Promise<{ success: boolean; results?: AnalysisResults; error?: string }> {
@@ -210,6 +231,29 @@ export async function getAnalyticsHistory(): Promise<{ success: boolean; analyti
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to get analytics history',
+    };
+  }
+}
+
+// Link existing resume to job analysis
+export async function linkResumeToAnalysis(
+  analysisId: string,
+  resumeId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await apiRequest(`/analytics/add-resume`, {
+      method: 'POST',
+      data: {
+        analytics_id: analysisId,
+        resume_id: resumeId,
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to link resume to analysis',
     };
   }
 }

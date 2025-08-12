@@ -29,7 +29,7 @@ import {
 // Collection Names
 // ========================================
 const USERS_COLLECTION = 'users';
-const ANALYSIS_COLLECTION = 'analysis_sessions';
+const ANALYSIS_COLLECTION = 'analytics';
 
 // ========================================
 // Type Definitions
@@ -42,7 +42,7 @@ export interface UserDocument {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   lastActiveAt: Timestamp;
-  defaultResumeId?: string;
+  default_resume_id?: string;
   onboardingComplete: boolean;
   onboardingProgress?: Record<string, any>;
 }
@@ -51,7 +51,8 @@ export interface AnalysisDocument {
   id: string;
   userId: string;
   type: 'resume_analysis' | 'job_analysis' | 'match_result';
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'resume_uploaded' | 'job_analyzed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'resume_uploaded' | 'job_analyzed' | 'in_process';
+  step_number?: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   completedAt?: Timestamp;
@@ -68,11 +69,57 @@ export interface AnalysisDocument {
   };
   parsed_data?: any;
 
-  // Fields for job analysis
+  // Enhanced job analysis fields
+  job_description?: {
+    title?: string;
+    company?: string;
+    location?: string;
+    description: string;
+    linkedin_url?: string;
+    parsed_skills: string[];
+    parsed_requirements: string[];
+    parsed_responsibilities: string[];
+    parsed_qualifications: string[];
+    keywords: string[];
+    raw_data?: any;
+    detailed_summary?: string;
+    parsed_data?: any;
+    experience_level?: string;
+    years_of_experience?: string;
+    job_type?: string;
+    salary_info?: any;
+    benefits?: string[];
+    company_info?: any;
+  };
+  
+  // Legacy fields for backward compatibility
   job_data?: any;
+  job_raw_data?: any;
+  job_detailed_summary?: string;
+  job_parsed_data?: any;
 
-  // Fields for match results
-  match_results?: any;
+  // Resume data
+  resume?: {
+    resume_id?: string;
+    filename?: string;
+    original_name?: string;
+    type: string;
+    parsed_data?: any;
+  };
+
+  // Analysis results
+  results?: {
+    match_score?: number;
+    ats_score?: number;
+    fit_level?: string;
+    matching_skills: string[];
+    missing_skills: string[];
+    suggestions: string[];
+    improvements: string[];
+    total_skills_matched?: number;
+    total_skills_missing?: number;
+    skill_match_percentage?: number;
+  };
 
   error?: string;
 }
@@ -165,7 +212,7 @@ export async function setDefaultResume(
 ): Promise<void> {
   try {
     const userRef = doc(db, USERS_COLLECTION, uid);
-    await updateDoc(userRef, { defaultResumeId: resumeId });
+    await updateDoc(userRef, { default_resume_id: resumeId });
 
     // Also update the isDefault flag on the resume document itself
     const batch = writeBatch(db);
@@ -452,6 +499,208 @@ export async function getAnalysis(analysisId: string): Promise<AnalysisDocument 
   }
 }
 
+/**
+ * Get analytics data from the analytics collection by ID.
+ * This is specifically for fetching the enhanced analysis results.
+ */
+export async function getAnalyticsData(analyticsId: string): Promise<any | null> {
+  try {
+    const analyticsRef = doc(db, ANALYSIS_COLLECTION, analyticsId);
+    const analyticsSnap = await getDoc(analyticsRef);
+
+    if (analyticsSnap.exists()) {
+      return { id: analyticsSnap.id, ...analyticsSnap.data() };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting analytics data:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get user's analytics data for workspace display
+ * This fetches all analytics documents for a user with enhanced data structure
+ */
+export async function getUserAnalyticsForWorkspace(userId: string): Promise<any[]> {
+  try {
+    // Remove orderBy to avoid composite index requirement
+    const q = query(
+      collection(db, ANALYSIS_COLLECTION),
+      where('user_id', '==', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const analytics = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        created_at: data.created_at || data.createdAt || null
+      };
+    });
+
+    // Sort in memory instead of using orderBy
+    analytics.sort((a, b) => {
+      const dateA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
+      const dateB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
+      return dateB - dateA; // Latest first
+    });
+
+    return analytics;
+  } catch (error) {
+    console.error('Error getting user analytics for workspace:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get enhanced workspace statistics for a user
+ * This provides comprehensive stats for the workspace dashboard
+ */
+export async function getWorkspaceStats(userId: string): Promise<{
+  total: number;
+  completed: number;
+  inProgress: number;
+  averageMatchScore: number;
+  averageATSScore: number;
+  greatFits: number;
+  possibleFits: number;
+  notFits: number;
+  thisWeek: number;
+}> {
+  try {
+    const analytics = await getUserAnalyticsForWorkspace(userId);
+    
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    const stats = {
+      total: analytics.length,
+      completed: 0,
+      inProgress: 0,
+      averageMatchScore: 0,
+      averageATSScore: 0,
+      greatFits: 0,
+      possibleFits: 0,
+      notFits: 0,
+      thisWeek: 0
+    };
+
+    let totalMatchScore = 0;
+    let totalATSScore = 0;
+    let scoreCount = 0;
+
+    analytics.forEach(analysis => {
+      // Count by status
+      if (analysis.status === 'completed') {
+        stats.completed++;
+      } else if (analysis.status === 'in_process' || analysis.status === 'processing') {
+        stats.inProgress++;
+      }
+
+      // Count by fit level
+      const fitLevel = analysis.results?.enhanced_analysis?.fit_level || 
+                      analysis.results?.basic_results?.fit_level || 'Not Fit';
+      
+      if (fitLevel === 'Great Fit') {
+        stats.greatFits++;
+      } else if (fitLevel === 'Possible Fit') {
+        stats.possibleFits++;
+      } else {
+        stats.notFits++;
+      }
+
+      // Calculate scores
+      const matchScore = analysis.results?.enhanced_analysis?.match_score || 
+                        analysis.results?.basic_results?.match_score || 0;
+      const atsScore = analysis.results?.enhanced_analysis?.ats_score || 
+                      analysis.results?.basic_results?.ats_score || 0;
+
+      if (matchScore > 0) {
+        totalMatchScore += matchScore;
+        totalATSScore += atsScore;
+        scoreCount++;
+      }
+
+      // Count this week's analyses
+      if (analysis.created_at) {
+        const createdDate = analysis.created_at.toDate ? analysis.created_at.toDate() : new Date(analysis.created_at);
+        if (createdDate >= weekAgo) {
+          stats.thisWeek++;
+        }
+      }
+    });
+
+    if (scoreCount > 0) {
+      stats.averageMatchScore = Math.round(totalMatchScore / scoreCount);
+      stats.averageATSScore = Math.round(totalATSScore / scoreCount);
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('Error getting workspace stats:', error);
+    throw error;
+  }
+}
+
+/**
+ * Subscribe to user's analytics data for real-time workspace updates
+ */
+export function subscribeToUserAnalytics(
+  userId: string,
+  callback: (analytics: any[], stats: any) => void
+): () => void {
+  // Remove orderBy to avoid composite index requirement
+  const q = query(
+    collection(db, ANALYSIS_COLLECTION),
+    where('user_id', '==', userId)
+  );
+
+  return onSnapshot(q, async (querySnapshot) => {
+    try {
+      const analytics = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          created_at: data.created_at || data.createdAt || null
+        };
+      });
+
+      // Sort in memory instead of using orderBy
+      analytics.sort((a, b) => {
+        const dateA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
+        const dateB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
+        return dateB - dateA; // Latest first
+      });
+
+      const stats = await getWorkspaceStats(userId);
+      callback(analytics, stats);
+    } catch (error) {
+      console.error('Error in analytics subscription:', error);
+      callback([], { total: 0, completed: 0, averageMatchScore: 0 });
+    }
+  });
+}
+
+/**
+ * Get a resume document by its ID.
+ */
+export async function getResumeById(resumeId: string): Promise<AnalysisDocument | null> {
+  try {
+    const resumeRef = doc(db, ANALYSIS_COLLECTION, resumeId);
+    const resumeSnap = await getDoc(resumeRef);
+
+    if (resumeSnap.exists()) {
+      return { id: resumeSnap.id, ...resumeSnap.data() } as AnalysisDocument;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting resume by ID:', error);
+    throw error;
+  }
+}
 
 /**
  * Get all resumes for a specific user.
@@ -512,62 +761,6 @@ export function subscribeToAnalysis(
       callback(null);
     }
   });
-}
-
-/**
- * Subscribe to a user's analysis sessions for real-time updates.
- */
-export function subscribeToUserAnalyses(
-  userId: string,
-  callback: (analyses: AnalysisDocument[]) => void
-): () => void {
-  // Simplified query to avoid composite index requirement
-  const q = query(
-    collection(db, ANALYSIS_COLLECTION),
-    where('userId', '==', userId)
-  );
-
-  return onSnapshot(q, (querySnapshot) => {
-    let analyses = querySnapshot.docs.map(
-      (doc) => ({ id: doc.id, ...doc.data() } as AnalysisDocument)
-    );
-    
-    // Sort in memory to avoid index requirement
-    analyses.sort((a, b) => {
-      const aTime = a.createdAt?.toMillis?.() || 0;
-      const bTime = b.createdAt?.toMillis?.() || 0;
-      return bTime - aTime;
-    });
-    
-    callback(analyses);
-  });
-}
-
-/**
- * Get analysis statistics for a user.
- */
-export async function getAnalysisStats(userId: string): Promise<AnalysisStats> {
-  try {
-    const analyses = await getUserAnalyses(userId);
-    const completedAnalyses = analyses.filter(
-      (a) => a.status === 'completed' && a.match_results
-    );
-
-    return {
-      total: analyses.length,
-      completed: completedAnalyses.length,
-      averageScore:
-        completedAnalyses.length > 0
-          ? completedAnalyses.reduce(
-              (sum, a) => sum + (a.match_results?.score || 0),
-              0
-            ) / completedAnalyses.length
-          : null,
-    };
-  } catch (error) {
-    console.error('Error getting analysis stats:', error);
-    throw error;
-  }
 }
 
 // ========================================

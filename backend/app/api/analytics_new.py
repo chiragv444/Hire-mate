@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from typing import Optional
+from typing import Optional, Dict, Any
 import os
 from datetime import datetime
 
 from ..core.auth import get_current_user
 from ..core.config import settings
 from ..services.resume_parser import resume_parser
+from ..services.enhanced_resume_parser import enhanced_resume_parser
+from ..services.enhanced_resume_analyzer import enhanced_resume_analyzer
 from ..services.job_scraper import job_scraper
+from ..services.enhanced_job_parser import enhanced_job_parser
 from ..services.firebase_simple import simplified_firebase_service
 from ..models.analytics import (
     CreateAnalyticsRequest,
@@ -42,34 +45,57 @@ async def create_analytics(
     This is called when user submits job description from the "New Analysis" page
     """
     try:
-        # Parse job description - handle LinkedIn URL vs plain text
+        # Parse job description using enhanced parser
         if request.linkedin_url:
-            # If LinkedIn URL is provided, scrape from LinkedIn
-            parsed_job = await job_scraper.scrape_linkedin_job(request.linkedin_url)
+            # If LinkedIn URL is provided, scrape from LinkedIn using enhanced parser
+            parsed_job = await enhanced_job_parser.scrape_linkedin_job(request.linkedin_url)
         else:
-            # If no LinkedIn URL, parse the plain text job description
-            parsed_job = await job_scraper.parse_job_description(request.job_description)
+            # If no LinkedIn URL, parse the plain text job description using enhanced parser
+            parsed_job = await enhanced_job_parser.parse_job_description(request.job_description)
         
-        # Create job description data
+        # Extract comprehensive data from parsed job
+        company_info = parsed_job.get('company', {})
+        location_info = parsed_job.get('location', {})
+        requirements_info = parsed_job.get('requirements', {})
+        salary_info = parsed_job.get('salary', {})
+        benefits_info = parsed_job.get('benefits', {})
+        details_info = parsed_job.get('details', {})
+        
+        # Create job description data with enhanced fields
         job_data = JobDescriptionData(
-            title=parsed_job.get('title'),
-            company=parsed_job.get('company'),
-            location=parsed_job.get('location'),
-            description=request.job_description,
+            title=parsed_job.get('title', ''),
+            company=company_info.get('name', '') if isinstance(company_info, dict) else str(company_info or ''),
+            location=location_info.get('full_location', '') if isinstance(location_info, dict) else str(location_info or ''),
+            description=str(request.job_description or parsed_job.get('description') or ''),
             linkedin_url=request.linkedin_url,
-            parsed_skills=parsed_job.get('skills', []),
-            parsed_requirements=parsed_job.get('requirements', []),
+            parsed_skills=requirements_info.get('required_skills', []) + requirements_info.get('preferred_skills', []),
+            parsed_requirements=parsed_job.get('qualifications', []),
             parsed_responsibilities=parsed_job.get('responsibilities', []),
             parsed_qualifications=parsed_job.get('qualifications', []),
-            keywords=parsed_job.get('keywords', [])
+            keywords=requirements_info.get('required_skills', []),
+            
+            # Enhanced fields
+            raw_data=parsed_job.get('raw_data', {}),
+            detailed_summary=parsed_job.get('detailed_summary', ''),
+            parsed_data=parsed_job,
+            experience_level=requirements_info.get('experience_level', ''),
+            years_of_experience=requirements_info.get('years_of_experience', ''),
+            job_type=details_info.get('job_type', ''),
+            salary_info=salary_info,
+            benefits=benefits_info.get('other_benefits', []) if isinstance(benefits_info, dict) else [],
+            company_info=company_info
         )
         
-        # Create analytics document
+        # Create analytics document with enhanced structure
         analytics_data = {
             'job_description': job_data.dict(),
+            'job_raw_data': parsed_job.get('raw_data', {}),
+            'job_detailed_summary': parsed_job.get('detailed_summary', ''),
+            'job_parsed_data': parsed_job,
             'resume': None,
             'results': None,
-            'status': 'job_added',
+            'status': 'in_process',
+            'step_number': 1,
             'created_at': datetime.now(),
             'updated_at': datetime.now()
         }
@@ -119,28 +145,60 @@ async def upload_resume_for_analytics(
                 detail=f"File too large. Maximum size: {settings.max_file_size // (1024*1024)}MB"
             )
         
-        # Save file
-        file_metadata = await resume_parser.save_uploaded_file(
-            file_content, 
-            file.filename, 
-            settings.upload_dir
+        # Save file to Firebase storage
+        file_url = simplified_firebase_service.upload_file(
+            file_content=file_content,
+            filename=file.filename,
+            content_type=file.content_type
         )
         
-        # Parse resume
-        parsed_data = await resume_parser.parse_resume(
-            file_metadata['file_path'], 
-            file_metadata['file_type']
-        )
+        # Create file metadata
+        file_metadata = {
+            'filename': file.filename,
+            'original_name': file.filename,
+            'file_path': file_url,
+            'file_size': len(file_content),
+            'file_type': file.content_type
+        }
+        
+        # Parse resume using enhanced parser
+        if enhanced_resume_parser:
+            parsed_data = await enhanced_resume_parser.parse_resume(
+                file_content, 
+                file.content_type
+            )
+        else:
+            # Fallback to basic parsing if enhanced parser is not available
+            parsed_data = {
+                "personal_info": {"name": None, "email": None, "phone": None},
+                "skills": {"technical": [], "soft": [], "domain": []},
+                "experience": [],
+                "education": [],
+                "projects": [],
+                "certifications": [],
+                "languages": [],
+                "awards": [],
+                "raw_text": "Resume content extracted",
+                "parsing_method": "basic_fallback",
+                "parsed_at": datetime.utcnow().isoformat(),
+                "statistics": {
+                    "total_experience_years": 0,
+                    "skill_count": 0,
+                    "education_count": 0,
+                    "project_count": 0,
+                    "certification_count": 0
+                }
+            }
         
         # Create parsed resume data
         parsed_resume_data = ParsedResumeData(
             raw_text=parsed_data.get('raw_text', ''),
-            skills=parsed_data.get('skills', []),
+            skills=parsed_data.get('skills', {}).get('technical', []) + parsed_data.get('skills', {}).get('soft', []),
             experience=parsed_data.get('experience', []),
             education=parsed_data.get('education', []),
-            contact_info=parsed_data.get('contact_info', {}),
+            contact_info=parsed_data.get('personal_info', {}),
             summary=parsed_data.get('summary', ''),
-            certifications=parsed_data.get('certifications', []),
+            certifications=[cert.get("name", "") for cert in parsed_data.get('certifications', [])],
             projects=parsed_data.get('projects', [])
         )
         
@@ -274,13 +332,80 @@ async def add_existing_resume_to_analytics(
             detail=f"Error adding resume to analytics: {str(e)}"
         )
 
+@router.post("/link-default-resume", response_model=AddResumeToAnalyticsResponse)
+async def link_default_resume_to_analytics(
+    request: AddResumeToAnalyticsRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Link user's default resume to analytics (when user chooses to use their default resume)
+    """
+    try:
+        # Get user document to find default resume ID
+        user_doc = simplified_firebase_service.get_document("users", current_user['uid'])
+        if not user_doc or "default_resume_id" not in user_doc:
+            raise HTTPException(
+                status_code=404,
+                detail="No default resume found for user"
+            )
+        
+        default_resume_id = user_doc["default_resume_id"]
+        
+        # Get the default resume
+        resume_data = simplified_firebase_service.get_document("resumes", default_resume_id)
+        if not resume_data:
+            raise HTTPException(
+                status_code=404,
+                detail="Default resume not found"
+            )
+        
+        # Create resume reference data for analytics
+        resume_ref_data = ResumeData(
+            resume_id=default_resume_id,
+            filename=resume_data.get('filename'),
+            original_name=resume_data.get('original_name'),
+            type=resume_data.get('type', 'default'),
+            parsed_data=resume_data.get('parsed_data', {})
+        )
+        
+        # Update analytics with resume data
+        update_success = simplified_firebase_service.update_analytics(
+            request.analytics_id,
+            current_user['uid'],
+            {
+                'resume': resume_ref_data.dict(),
+                'status': 'resume_added'
+            }
+        )
+        
+        if not update_success:
+            raise HTTPException(
+                status_code=404,
+                detail="Analytics not found or access denied"
+            )
+        
+        return AddResumeToAnalyticsResponse(
+            success=True,
+            message="Default resume linked to analytics successfully",
+            analytics_id=request.analytics_id,
+            resume_id=default_resume_id
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error linking default resume to analytics: {str(e)}"
+        )
+
 @router.post("/perform-analysis", response_model=PerformAnalysisResponse)
 async def perform_analysis(
     request: PerformAnalysisRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Perform the actual analysis between resume and job description
+    Perform the actual analysis between resume and job description using enhanced AI analysis
     """
     try:
         # Get analytics data
@@ -305,6 +430,82 @@ async def perform_analysis(
         job_data = analytics_data['job_description']
         resume_data = analytics_data['resume']
         
+        # Get the raw text content for analysis
+        job_description_text = job_data.get('description', '')
+        resume_raw_text = resume_data.get('parsed_data', {}).get('raw_text', '')
+        
+        if not job_description_text or not resume_raw_text:
+            raise HTTPException(
+                status_code=400,
+                detail="Job description or resume content is missing"
+            )
+        
+        # Perform enhanced analysis using the enhanced resume analyzer
+        if enhanced_resume_analyzer:
+            analysis_results = await enhanced_resume_analyzer.analyze_resume_against_job(
+                job_description_text,
+                resume_raw_text
+            )
+            
+            # Store enhanced results in the proper structure
+            results_data = {
+                'enhanced_analysis': analysis_results,
+                'basic_results': {
+                    'match_score': analysis_results.get('match_score', 0),
+                    'ats_score': analysis_results.get('ats_score', 0),
+                    'fit_level': analysis_results.get('fit_level', 'Not Fit'),
+                    'missing_skills': analysis_results.get('missing_keywords', []),
+                    'suggestions': analysis_results.get('suggestions', []),
+                    'improvements': analysis_results.get('ats_feedback', []),
+                    'total_skills_matched': len(analysis_results.get('skill_analysis', {}).get('matching_skills', [])),
+                    'total_skills_missing': len(analysis_results.get('skill_analysis', {}).get('missing_skills', [])),
+                    'skill_match_percentage': analysis_results.get('skill_analysis', {}).get('skill_match_percentage', 0)
+                }
+            }
+        else:
+            # Fallback to basic analysis
+            analysis_results = await _perform_basic_analysis(job_data, resume_data)
+            results_data = {
+                'basic_results': analysis_results
+            }
+        
+        # Update analytics with results
+        update_success = simplified_firebase_service.update_analytics(
+            request.analytics_id,
+            current_user['uid'],
+            {
+                'results': results_data,
+                'status': 'completed',
+                'step_number': 3,
+                'updated_at': datetime.now()
+            }
+        )
+        
+        if not update_success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to save analysis results"
+            )
+        
+        return PerformAnalysisResponse(
+            success=True,
+            message="Analysis completed successfully",
+            analytics_id=request.analytics_id,
+            results=analysis_results # Return the analysis_results object directly
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error performing analysis: {str(e)}"
+        )
+
+async def _perform_basic_analysis(job_data: Dict[str, Any], resume_data: Dict[str, Any]) -> AnalysisResults:
+    """Perform basic rule-based analysis as fallback"""
+    try:
+        # Extract basic data
         job_skills = set(job_data.get('parsed_skills', []))
         job_keywords = set(job_data.get('keywords', []))
         job_description_text = job_data.get('description', '')
@@ -330,7 +531,7 @@ async def perform_analysis(
         improvements = _generate_improvements(missing_skills, match_score)
         
         # Create results
-        results = AnalysisResults(
+        return AnalysisResults(
             match_score=round(match_score, 1),
             ats_score=round(ats_score, 1),
             fit_level=fit_level,
@@ -343,35 +544,20 @@ async def perform_analysis(
             skill_match_percentage=round((len(matching_skills) / len(job_skills)) * 100, 1) if job_skills else 0
         )
         
-        # Update analytics with results
-        update_success = simplified_firebase_service.update_analytics(
-            request.analytics_id,
-            current_user['uid'],
-            {
-                'results': results.dict(),
-                'status': 'completed'
-            }
-        )
-        
-        if not update_success:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to save analysis results"
-            )
-        
-        return PerformAnalysisResponse(
-            success=True,
-            message="Analysis completed successfully",
-            analytics_id=request.analytics_id,
-            results=results
-        )
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error performing analysis: {str(e)}"
+        print(f"Basic analysis failed: {e}")
+        # Return minimal results
+        return AnalysisResults(
+            match_score=0.0,
+            ats_score=0.0,
+            fit_level="Not Fit",
+            matching_skills=[],
+            missing_skills=[],
+            suggestions=["Analysis failed - please try again"],
+            improvements=["Unable to analyze at this time"],
+            total_skills_matched=0,
+            total_skills_missing=0,
+            skill_match_percentage=0.0
         )
 
 @router.get("/history", response_model=AnalyticsHistoryResponse)

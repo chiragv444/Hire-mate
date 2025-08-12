@@ -56,7 +56,7 @@ class SimplifiedFirebaseService:
         """Upload file to local storage and return the file path"""
         try:
             # Create uploads directory if it doesn't exist
-            uploads_dir = Path("uploads/resumes")
+            uploads_dir = Path("assets/resumes")
             uploads_dir.mkdir(parents=True, exist_ok=True)
             
             # Generate unique filename
