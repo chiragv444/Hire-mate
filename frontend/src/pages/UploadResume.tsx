@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Upload, FileText, X, Check, ArrowRight } from 'lucide-react';
+import { Upload, FileText, X, Check, ArrowRight, User } from 'lucide-react';
 
 import { uploadResume } from '@/lib/api';
+import { linkResumeToAnalysis } from '@/lib/api-new';
+import { getUser, getUserResumes } from '@/lib/firestore';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -13,11 +16,53 @@ import { toast } from '@/hooks/use-toast';
 
 const UploadResume = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [parsedText, setParsedText] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState(false);
+  
+  // New state for default resume functionality
+  const [defaultResume, setDefaultResume] = useState<any>(null);
+  const [isLoadingDefault, setIsLoadingDefault] = useState(true);
+  const [useDefaultResume, setUseDefaultResume] = useState(false);
+  const analysisId = searchParams.get('analysis-id');
+
+  // Fetch user's default resume
+  useEffect(() => {
+    const fetchDefaultResume = async () => {
+      if (!user?.uid) {
+        setIsLoadingDefault(false);
+        return;
+      }
+
+      try {
+        const userData = await getUser(user.uid);
+        if (userData?.defaultResumeId) {
+          const userResumes = await getUserResumes(user.uid);
+          const defaultResumeDoc = userResumes.find(resume => resume.id === userData.defaultResumeId);
+          
+          if (defaultResumeDoc) {
+            setDefaultResume({
+              id: defaultResumeDoc.id,
+              name: defaultResumeDoc.name || 'Default Resume',
+              fileName: defaultResumeDoc.metadata?.fileName || 'resume.pdf',
+              fileSize: defaultResumeDoc.metadata?.fileSize || 0,
+              createdAt: defaultResumeDoc.createdAt.toDate().toLocaleDateString()
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching default resume:', error);
+      } finally {
+        setIsLoadingDefault(false);
+      }
+    };
+
+    fetchDefaultResume();
+  }, [user]);
 
   const handleFileSelect = (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -152,6 +197,84 @@ const UploadResume = () => {
               </CardHeader>
               
               <CardContent className="space-y-6">
+                {/* Default Resume Section */}
+                {isLoadingDefault ? (
+                  <div className="flex items-center justify-center p-4">
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    <span className="text-muted-foreground">Loading your default resume...</span>
+                  </div>
+                ) : defaultResume ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Default Resume</h3>
+                      <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
+                        Default
+                      </span>
+                    </div>
+                    
+                    <div className="p-4 bg-muted/30 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <User className="h-8 w-8 text-primary" />
+                        <div className="flex-1">
+                          <h4 className="font-medium">{defaultResume.fileName}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {(defaultResume.fileSize / (1024 * 1024)).toFixed(2)} MB • Uploaded {defaultResume.createdAt}
+                          </p>
+                        </div>
+                        <Button
+                          variant={useDefaultResume ? "default" : "outline"}
+                          onClick={() => setUseDefaultResume(!useDefaultResume)}
+                          className="ml-auto"
+                        >
+                          {useDefaultResume ? "Selected" : "Use This Resume"}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {useDefaultResume && (
+                      <div className="flex justify-center">
+                        <Button
+                          onClick={async () => {
+                            // Handle default resume selection
+                            if (analysisId && defaultResume) {
+                              try {
+                                // Link resume to analysis via API
+                                const result = await linkResumeToAnalysis(analysisId, defaultResume.id);
+                                if (result.success) {
+                                  toast({
+                                    title: "Resume linked successfully!",
+                                    description: "Your default resume has been linked to the job analysis.",
+                                  });
+                                  navigate(`/analysis-results?analysis-id=${analysisId}&resume-id=${defaultResume.id}`);
+                                } else {
+                                  throw new Error(result.error || 'Failed to link resume');
+                                }
+                              } catch (error) {
+                                toast({
+                                  title: "Error",
+                                  description: error instanceof Error ? error.message : "Failed to link resume to analysis.",
+                                  variant: "destructive",
+                                });
+                              }
+                            } else {
+                              navigate('/job-input', { state: { resumeId: defaultResume?.id } });
+                            }
+                          }}
+                          className="w-full max-w-md"
+                        >
+                          Continue with Default Resume
+                          <ArrowRight className="h-4 w-4 ml-2" />
+                        </Button>
+                      </div>
+                    )}
+                    
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-2">Or upload a different resume:</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Upload New Resume Section */}
                 {!selectedFile ? (
                   <div
                     className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${

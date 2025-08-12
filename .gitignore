@@ -35,3 +35,6 @@ backend/service-account-key.json
 
 __pycache__/
 *.py[cod]
+
+# Resume files - sensitive data should not be tracked
+backend/assets/resumes/
