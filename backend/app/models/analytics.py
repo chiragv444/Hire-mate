@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -9,13 +9,33 @@ class JobDescriptionData(BaseModel):
     title: Optional[str] = None
     company: Optional[str] = None
     location: Optional[str] = None
-    description: str
+    description: str = Field(default="", description="Job description text - always required as string")
     linkedin_url: Optional[str] = None
+    
+    @validator('description', pre=True)
+    def ensure_description_is_string(cls, v):
+        """Ensure description is always a string, never None"""
+        if v is None:
+            return ""
+        return str(v)
     parsed_skills: List[str] = []
     parsed_requirements: List[str] = []
     parsed_responsibilities: List[str] = []
     parsed_qualifications: List[str] = []
     keywords: List[str] = []
+    
+    # Enhanced fields from the new parser
+    raw_data: Dict[str, Any] = {}
+    detailed_summary: Optional[str] = None
+    parsed_data: Dict[str, Any] = {}
+    
+    # Additional extracted fields
+    experience_level: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    job_type: Optional[str] = None
+    salary_info: Dict[str, Any] = {}
+    benefits: List[str] = []
+    company_info: Dict[str, Any] = {}
 
 class ResumeData(BaseModel):
     """Resume data within analytics"""
@@ -45,9 +65,15 @@ class Analytics(BaseModel):
     job_description: Optional[JobDescriptionData] = None
     resume: Optional[ResumeData] = None
     results: Optional[AnalysisResults] = None
-    status: str = "draft"  # draft, job_added, resume_added, completed
+    status: str = "in_process"  # in_process, resume_added, completed, failed
+    step_number: int = 1  # 1=job_parsed, 2=resume_added, 3=analysis_complete
     created_at: datetime
     updated_at: Optional[datetime] = None
+    
+    # Enhanced fields for better tracking
+    job_raw_data: Dict[str, Any] = {}
+    job_detailed_summary: Optional[str] = None
+    job_parsed_data: Dict[str, Any] = {}
 
 # Request/Response Models
 
