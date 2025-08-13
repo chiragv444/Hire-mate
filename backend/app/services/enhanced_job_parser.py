@@ -45,6 +45,10 @@ class CompanyInfo(BaseModel):
     website: Optional[str] = Field(description="Company website")
     description: Optional[str] = Field(description="Company description/about")
     linkedin_url: Optional[str] = Field(description="Company LinkedIn URL")
+    company_type: Optional[str] = Field(description="Company type (e.g., 'Public', 'Private', 'Startup')")
+    founded_year: Optional[str] = Field(description="Company founding year")
+    revenue: Optional[str] = Field(description="Company revenue if mentioned")
+    specialties: List[str] = Field(description="Company specialties/focus areas", default_factory=list)
 
 class JobLocation(BaseModel):
     city: Optional[str] = Field(description="Job location city")
@@ -53,6 +57,8 @@ class JobLocation(BaseModel):
     is_remote: bool = Field(description="Whether the job is remote", default=False)
     is_hybrid: bool = Field(description="Whether the job is hybrid", default=False)
     full_location: Optional[str] = Field(description="Full location string")
+    timezone: Optional[str] = Field(description="Timezone if mentioned")
+    relocation_assistance: Optional[bool] = Field(description="Whether relocation assistance is provided")
 
 class SalaryInfo(BaseModel):
     min_salary: Optional[str] = Field(description="Minimum salary")
@@ -60,6 +66,8 @@ class SalaryInfo(BaseModel):
     currency: Optional[str] = Field(description="Salary currency (e.g., USD)")
     period: Optional[str] = Field(description="Salary period (e.g., yearly, hourly)")
     equity: Optional[str] = Field(description="Equity information if mentioned")
+    bonus: Optional[str] = Field(description="Bonus information if mentioned")
+    commission: Optional[str] = Field(description="Commission structure if mentioned")
 
 class JobRequirements(BaseModel):
     required_skills: List[str] = Field(description="Required technical and soft skills", default_factory=list)
@@ -70,6 +78,8 @@ class JobRequirements(BaseModel):
     years_of_experience: Optional[str] = Field(description="Years of experience required")
     languages: List[str] = Field(description="Programming languages required", default_factory=list)
     tools_technologies: List[str] = Field(description="Tools and technologies required", default_factory=list)
+    industry_experience: List[str] = Field(description="Required industry experience", default_factory=list)
+    domain_knowledge: List[str] = Field(description="Required domain knowledge", default_factory=list)
 
 class JobBenefits(BaseModel):
     health_insurance: bool = Field(description="Health insurance provided", default=False)
@@ -81,6 +91,9 @@ class JobBenefits(BaseModel):
     professional_development: bool = Field(description="Professional development opportunities", default=False)
     stock_options: bool = Field(description="Stock options or equity", default=False)
     other_benefits: List[str] = Field(description="Other benefits mentioned", default_factory=list)
+    gym_membership: bool = Field(description="Gym membership or wellness benefits", default=False)
+    commuter_benefits: bool = Field(description="Commuter benefits or transportation", default=False)
+    tuition_reimbursement: bool = Field(description="Tuition reimbursement or education support", default=False)
 
 class JobDetails(BaseModel):
     job_type: Optional[str] = Field(description="Job type (Full-time, Part-time, Contract, etc.)")
@@ -90,6 +103,11 @@ class JobDetails(BaseModel):
     posted_date: Optional[str] = Field(description="Job posting date")
     application_deadline: Optional[str] = Field(description="Application deadline if mentioned")
     number_of_applicants: Optional[str] = Field(description="Number of applicants if shown")
+    application_method: Optional[str] = Field(description="How to apply (email, portal, etc.)")
+    visa_sponsorship: Optional[bool] = Field(description="Whether visa sponsorship is available")
+    travel_requirements: Optional[str] = Field(description="Travel requirements if any")
+    team_size: Optional[str] = Field(description="Team size if mentioned")
+    reporting_structure: Optional[str] = Field(description="Reporting structure if mentioned")
 
 class ParsedJobStructure(BaseModel):
     title: Optional[str] = Field(description="Job title")
@@ -104,6 +122,9 @@ class ParsedJobStructure(BaseModel):
     qualifications: List[str] = Field(description="Qualifications listed", default_factory=list)
     summary: Optional[str] = Field(description="AI-generated job summary")
     linkedin_url: Optional[str] = Field(description="Original LinkedIn job URL")
+    company_culture: Optional[str] = Field(description="Company culture information if mentioned")
+    growth_opportunities: Optional[str] = Field(description="Growth and advancement opportunities")
+    work_environment: Optional[str] = Field(description="Work environment description")
 
 # ----------------------------
 # Enhanced Job Parser Class
@@ -389,7 +410,7 @@ class EnhancedJobParser:
         }
 
     def _generate_detailed_summary(self, parsed_data: Dict[str, Any]) -> str:
-        """Generate a comprehensive summary of the job posting"""
+        """Generate a comprehensive, detailed summary of the job posting"""
         try:
             company_name = parsed_data.get('company', {}).get('name', 'Unknown Company')
             title = parsed_data.get('title', 'Unknown Position')
@@ -397,66 +418,202 @@ class EnhancedJobParser:
             
             summary_parts = []
             
-            # Company and role intro
+            # Company and role introduction
             summary_parts.append(f"{company_name} is seeking a {title} based in {location}.")
             
-            # Company description
-            company_desc = parsed_data.get('company', {}).get('description')
-            if company_desc:
-                summary_parts.append(f"About the Company: {company_desc}")
+            # Company comprehensive information
+            company_info = parsed_data.get('company', {})
+            if company_info.get('description'):
+                summary_parts.append(f"About the Company: {company_info['description']}")
             
-            # Role details
-            if parsed_data.get('details', {}).get('job_type'):
-                job_type = parsed_data['details']['job_type']
-                summary_parts.append(f"This is a {job_type} position.")
+            if company_info.get('industry'):
+                summary_parts.append(f"Industry: {company_info['industry']}")
+            
+            if company_info.get('size'):
+                summary_parts.append(f"Company Size: {company_info['size']}")
+            
+            if company_info.get('company_type'):
+                summary_parts.append(f"Company Type: {company_info['company_type']}")
+            
+            if company_info.get('specialties'):
+                specialties = ', '.join(company_info['specialties'][:5])  # Limit to top 5
+                summary_parts.append(f"Company Specialties: {specialties}")
+            
+            # Role details and requirements
+            details = parsed_data.get('details', {})
+            requirements = parsed_data.get('requirements', {})
+            
+            if details.get('job_type'):
+                summary_parts.append(f"Employment Type: {details['job_type']}")
+            
+            if details.get('seniority_level'):
+                summary_parts.append(f"Seniority Level: {details['seniority_level']}")
+            
+            if details.get('job_function'):
+                summary_parts.append(f"Job Function: {details['job_function']}")
+            
+            if details.get('industries'):
+                industries = ', '.join(details['industries'][:3])  # Limit to top 3
+                summary_parts.append(f"Target Industries: {industries}")
             
             # Experience requirements
-            exp_level = parsed_data.get('requirements', {}).get('experience_level')
-            years_exp = parsed_data.get('requirements', {}).get('years_of_experience')
+            exp_level = requirements.get('experience_level')
+            years_exp = requirements.get('years_of_experience')
             if exp_level or years_exp:
-                exp_text = f"Experience Required: {exp_level or ''} {years_exp or ''}".strip()
+                exp_text = f"Experience Requirements: {exp_level or ''} {years_exp or ''}".strip()
                 summary_parts.append(exp_text)
             
-            # Key skills
-            required_skills = parsed_data.get('requirements', {}).get('required_skills', [])
+            # Education requirements
+            education_reqs = requirements.get('education', [])
+            if education_reqs:
+                edu_text = f"Education Requirements: {', '.join(education_reqs[:3])}"
+                summary_parts.append(edu_text)
+            
+            # Key skills and technologies
+            required_skills = requirements.get('required_skills', [])
+            preferred_skills = requirements.get('preferred_skills', [])
+            tools_tech = requirements.get('tools_technologies', [])
+            
             if required_skills:
-                skills_text = f"Key Skills: {', '.join(required_skills[:10])}"
-                if len(required_skills) > 10:
-                    skills_text += f" and {len(required_skills) - 10} more"
+                skills_text = f"Required Skills: {', '.join(required_skills[:8])}"
+                if len(required_skills) > 8:
+                    skills_text += f" and {len(required_skills) - 8} more"
                 summary_parts.append(skills_text)
             
-            # Salary info
+            if preferred_skills:
+                pref_skills_text = f"Preferred Skills: {', '.join(preferred_skills[:5])}"
+                summary_parts.append(pref_skills_text)
+            
+            if tools_tech:
+                tools_text = f"Tools & Technologies: {', '.join(tools_tech[:6])}"
+                summary_parts.append(tools_text)
+            
+            # Industry experience and domain knowledge
+            industry_exp = requirements.get('industry_experience', [])
+            domain_knowledge = requirements.get('domain_knowledge', [])
+            
+            if industry_exp:
+                industry_text = f"Industry Experience: {', '.join(industry_exp[:3])}"
+                summary_parts.append(industry_text)
+            
+            if domain_knowledge:
+                domain_text = f"Domain Knowledge: {', '.join(domain_knowledge[:3])}"
+                summary_parts.append(domain_text)
+            
+            # Salary and compensation
             salary = parsed_data.get('salary', {})
             if salary.get('min_salary') or salary.get('max_salary'):
-                salary_text = f"Compensation: {salary.get('min_salary', '')} - {salary.get('max_salary', '')} {salary.get('currency', '')}"
+                salary_text = f"Compensation Range: {salary.get('min_salary', '')} - {salary.get('max_salary', '')} {salary.get('currency', '')}"
+                if salary.get('period'):
+                    salary_text += f" ({salary['period']})"
                 summary_parts.append(salary_text.strip())
             
-            # Benefits
+            if salary.get('equity'):
+                summary_parts.append(f"Equity: {salary['equity']}")
+            
+            if salary.get('bonus'):
+                summary_parts.append(f"Bonus: {salary['bonus']}")
+            
+            if salary.get('commission'):
+                summary_parts.append(f"Commission: {salary['commission']}")
+            
+            # Comprehensive benefits
             benefits = parsed_data.get('benefits', {})
             benefit_list = []
+            
             if benefits.get('health_insurance'):
                 benefit_list.append('Health Insurance')
+            if benefits.get('dental_vision'):
+                benefit_list.append('Dental & Vision Insurance')
             if benefits.get('retirement_401k'):
-                benefit_list.append('401k')
+                benefit_list.append('401k/Retirement Benefits')
+            if benefits.get('paid_time_off'):
+                benefit_list.append('Paid Time Off')
+            if benefits.get('flexible_schedule'):
+                benefit_list.append('Flexible Schedule')
             if benefits.get('remote_work'):
                 benefit_list.append('Remote Work Options')
             if benefits.get('professional_development'):
                 benefit_list.append('Professional Development')
+            if benefits.get('stock_options'):
+                benefit_list.append('Stock Options/Equity')
+            if benefits.get('gym_membership'):
+                benefit_list.append('Gym/Wellness Benefits')
+            if benefits.get('commuter_benefits'):
+                benefit_list.append('Commuter Benefits')
+            if benefits.get('tuition_reimbursement'):
+                benefit_list.append('Tuition Reimbursement')
             
             if benefit_list:
-                summary_parts.append(f"Benefits: {', '.join(benefit_list)}")
+                summary_parts.append(f"Benefits Package: {', '.join(benefit_list)}")
             
-            return ' '.join(summary_parts)
+            # Additional job details
+            if details.get('application_method'):
+                summary_parts.append(f"Application Method: {details['application_method']}")
+            
+            if details.get('visa_sponsorship'):
+                summary_parts.append("Visa Sponsorship: Available")
+            
+            if details.get('travel_requirements'):
+                summary_parts.append(f"Travel Requirements: {details['travel_requirements']}")
+            
+            if details.get('team_size'):
+                summary_parts.append(f"Team Size: {details['team_size']}")
+            
+            if details.get('reporting_structure'):
+                summary_parts.append(f"Reporting Structure: {details['reporting_structure']}")
+            
+            # Company culture and work environment
+            if parsed_data.get('company_culture'):
+                summary_parts.append(f"Company Culture: {parsed_data['company_culture']}")
+            
+            if parsed_data.get('work_environment'):
+                summary_parts.append(f"Work Environment: {parsed_data['work_environment']}")
+            
+            if parsed_data.get('growth_opportunities'):
+                summary_parts.append(f"Growth Opportunities: {parsed_data['growth_opportunities']}")
+            
+            # Responsibilities and qualifications summary
+            responsibilities = parsed_data.get('responsibilities', [])
+            qualifications = parsed_data.get('qualifications', [])
+            
+            if responsibilities:
+                resp_count = len(responsibilities)
+                summary_parts.append(f"Key Responsibilities: {resp_count} main areas including {', '.join(responsibilities[:3])}")
+            
+            if qualifications:
+                qual_count = len(qualifications)
+                summary_parts.append(f"Qualifications: {qual_count} key requirements including {', '.join(qualifications[:3])}")
+            
+            # Posting details
+            if details.get('posted_date'):
+                summary_parts.append(f"Posted: {details['posted_date']}")
+            
+            if details.get('application_deadline'):
+                summary_parts.append(f"Application Deadline: {details['application_deadline']}")
+            
+            if details.get('number_of_applicants'):
+                summary_parts.append(f"Current Applicants: {details['number_of_applicants']}")
+            
+            # Generate comprehensive summary
+            comprehensive_summary = ' '.join(summary_parts)
+            
+            # Add a professional conclusion
+            if len(comprehensive_summary) > 500:  # If summary is substantial
+                comprehensive_summary += f" This position represents an excellent opportunity for a {exp_level or 'qualified'} professional to join {company_name} and contribute to their mission while advancing their career in {company_info.get('industry', 'the industry')}."
+            
+            return comprehensive_summary
             
         except Exception as e:
-            print(f"Error generating summary: {e}")
-            return "Detailed job summary could not be generated."
+            print(f"Error generating detailed summary: {e}")
+            return "Comprehensive job summary could not be generated. Please review the job description manually for complete details."
 
     # Helper methods for data extraction
     def _extract_job_title(self, soup: BeautifulSoup) -> str:
-        """Extract job title from LinkedIn page"""
-        # Try multiple selectors for job title
+        """Extract job title from LinkedIn page with comprehensive selectors"""
+        # Comprehensive selectors for job title extraction
         selectors = [
+            # Primary selectors
             'h1[class*="job-title"]',
             'h1[class*="title"]',
             '.job-title',
@@ -467,19 +624,49 @@ class EnhancedJobParser:
             'h1[data-automation-id="jobPostingHeader"]',
             '.jobs-unified-top-card__job-title h1',
             'h1.t-24',
-            'h1'
+            # Additional selectors for different LinkedIn layouts
+            'h1[class*="jobs-unified-top-card__job-title"]',
+            'h1[class*="job-details-jobs-unified-top-card__job-title"]',
+            'h1[class*="top-card-layout__title"]',
+            'h1[class*="jobs-box__job-title"]',
+            'h1[class*="job-posting-header"]',
+            'h1[class*="job-header"]',
+            'h1[class*="position-title"]',
+            'h1[class*="role-title"]',
+            # Fallback selectors
+            'h1',
+            'h2[class*="title"]',
+            'h2[class*="job"]',
+            '.job-header h1',
+            '.position-header h1'
         ]
         
         for selector in selectors:
             element = soup.select_one(selector)
             if element and element.get_text().strip():
-                return element.get_text().strip()
+                title = element.get_text().strip()
+                # Clean up common artifacts
+                title = re.sub(r'\s+', ' ', title)
+                title = re.sub(r'[^\w\s\-&()]', '', title)
+                if len(title) > 3:  # Ensure we have a meaningful title
+                    return title
+        
+        # Fallback: look for any heading that might contain job title
+        headings = soup.find_all(['h1', 'h2', 'h3'])
+        for heading in headings:
+            text = heading.get_text().strip()
+            if text and len(text) > 3 and len(text) < 100:
+                # Check if it looks like a job title
+                if any(word in text.lower() for word in ['engineer', 'manager', 'developer', 'analyst', 'specialist', 'coordinator', 'director', 'lead', 'architect']):
+                    return text
         
         return "Job Title Not Found"
     
     def _extract_company_name(self, soup: BeautifulSoup) -> str:
-        """Extract company name from LinkedIn page"""
+        """Extract company name from LinkedIn page with comprehensive selectors"""
+        # Comprehensive selectors for company name extraction
         selectors = [
+            # Primary selectors
             '.job-details-jobs-unified-top-card__company-name a',
             '.jobs-unified-top-card__company-name a',
             '.job-details-jobs-unified-top-card__company-name',
@@ -488,37 +675,138 @@ class EnhancedJobParser:
             '.company-name',
             '.employer-name',
             '[class*="company"]',
-            '[class*="employer"]'
+            '[class*="employer"]',
+            # Additional selectors for different layouts
+            'a[class*="company-name"]',
+            'a[class*="employer-name"]',
+            'span[class*="company-name"]',
+            'span[class*="employer-name"]',
+            'div[class*="company-name"]',
+            'div[class*="employer-name"]',
+            '.job-header a[href*="/company/"]',
+            '.position-header a[href*="/company/"]',
+            'a[href*="/company/"][class*="name"]',
+            # Fallback selectors
+            'a[href*="/company/"]',
+            '[class*="company"] a',
+            '[class*="employer"] a'
         ]
         
         for selector in selectors:
             element = soup.select_one(selector)
             if element and element.get_text().strip():
-                return element.get_text().strip()
+                company_name = element.get_text().strip()
+                # Clean up common artifacts
+                company_name = re.sub(r'\s+', ' ', company_name)
+                company_name = re.sub(r'[^\w\s\-&()]', '', company_name)
+                if len(company_name) > 2:  # Ensure we have a meaningful company name
+                    return company_name
+        
+        # Fallback: look for company links in the page
+        company_links = soup.find_all('a', href=re.compile(r'/company/'))
+        for link in company_links:
+            text = link.get_text().strip()
+            if text and len(text) > 2 and len(text) < 100:
+                # Check if it looks like a company name
+                if not any(word in text.lower() for word in ['apply', 'save', 'share', 'report', 'job', 'position']):
+                    return text
+        
+        # Additional fallback: look for text near company-related keywords
+        company_keywords = ['company', 'employer', 'organization', 'firm', 'corporation', 'inc', 'llc', 'ltd']
+        for keyword in company_keywords:
+            elements = soup.find_all(text=re.compile(keyword, re.IGNORECASE))
+            for element in elements:
+                parent = element.parent
+                if parent:
+                    text = parent.get_text().strip()
+                    if text and len(text) > 5 and len(text) < 100:
+                        # Extract potential company name
+                        words = text.split()
+                        for i, word in enumerate(words):
+                            if keyword.lower() in word.lower() and i > 0:
+                                potential_name = ' '.join(words[:i])
+                                if len(potential_name) > 2:
+                                    return potential_name
         
         return "Company Not Found"
     
     def _extract_location(self, soup: BeautifulSoup) -> str:
-        """Extract job location from LinkedIn page"""
+        """Extract job location from LinkedIn page with comprehensive selectors"""
+        # Comprehensive selectors for location extraction
         selectors = [
+            # Primary selectors
             '.job-details-jobs-unified-top-card__bullet',
             '.jobs-unified-top-card__bullet',
             'span[data-automation-id="jobPostingLocation"]',
             '.job-location',
             '.location',
-            '[class*="location"]'
+            '[class*="location"]',
+            # Additional selectors for different layouts
+            'span[class*="location"]',
+            'div[class*="location"]',
+            'p[class*="location"]',
+            '.job-header [class*="location"]',
+            '.position-header [class*="location"]',
+            '[class*="job-location"]',
+            '[class*="work-location"]',
+            '[class*="office-location"]',
+            # Fallback selectors
+            '.job-details [class*="location"]',
+            '.job-info [class*="location"]',
+            '.job-meta [class*="location"]'
         ]
         
         for selector in selectors:
             element = soup.select_one(selector)
             if element and element.get_text().strip():
-                return element.get_text().strip()
+                location = element.get_text().strip()
+                # Clean up common artifacts
+                location = re.sub(r'\s+', ' ', location)
+                if len(location) > 2:  # Ensure we have a meaningful location
+                    return location
+        
+        # Fallback: look for location patterns in the page
+        location_patterns = [
+            r'([A-Za-z\s]+,\s*[A-Z]{2})',  # City, ST
+            r'([A-Za-z\s]+,\s*[A-Za-z\s]+,\s*[A-Z]{2})',  # City, County, ST
+            r'([A-Za-z\s]+,\s*[A-Za-z\s]+)',  # City, State
+            r'([A-Za-z\s]+,\s*[A-Za-z]{2})',  # City, Province
+        ]
+        
+        page_text = soup.get_text()
+        for pattern in location_patterns:
+            matches = re.findall(pattern, page_text)
+            for match in matches:
+                if len(match.strip()) > 5 and len(match.strip()) < 100:
+                    return match.strip()
+        
+        # Additional fallback: look for text near location-related keywords
+        location_keywords = ['location', 'based in', 'office in', 'work from', 'remote', 'hybrid']
+        for keyword in location_keywords:
+            elements = soup.find_all(text=re.compile(keyword, re.IGNORECASE))
+            for element in elements:
+                parent = element.parent
+                if parent:
+                    text = parent.get_text().strip()
+                    if text and len(text) > 10 and len(text) < 200:
+                        # Extract potential location
+                        if keyword.lower() in text.lower():
+                            parts = text.split(keyword, 1)
+                            if len(parts) > 1:
+                                potential_location = parts[1].strip()
+                                if len(potential_location) > 3 and len(potential_location) < 100:
+                                    # Clean up the location
+                                    potential_location = re.sub(r'[^\w\s,\-]', '', potential_location)
+                                    if potential_location.strip():
+                                        return potential_location.strip()
         
         return "Location Not Found"
     
     def _extract_job_description(self, soup: BeautifulSoup) -> str:
-        """Extract job description from LinkedIn page"""
+        """Extract job description from LinkedIn page with comprehensive selectors"""
+        # Comprehensive selectors for job description extraction
         selectors = [
+            # Primary selectors
             '.jobs-description-content__text',
             '.jobs-box__html-content',
             '.job-details-jobs-unified-top-card__job-description',
@@ -529,14 +817,29 @@ class EnhancedJobParser:
             '.job-description',
             '.description',
             '[class*="description"]',
-            '.job-details'
+            '.job-details',
+            # Additional selectors for different layouts
+            '.job-description-content',
+            '.job-posting-description',
+            '.position-description',
+            '.role-description',
+            '.job-summary',
+            '.job-overview',
+            '.job-requirements',
+            '.job-responsibilities',
+            '.job-qualifications',
+            # Fallback selectors
+            '[class*="job-description"]',
+            '[class*="job-content"]',
+            '[class*="job-text"]',
+            '[class*="job-body"]'
         ]
         
         for selector in selectors:
             element = soup.select_one(selector)
             if element:
                 text = element.get_text().strip()
-                if text:
+                if text and len(text) > 100:  # Ensure substantial content
                     return text
         
         # Fallback: try to find any large text block
@@ -548,7 +851,28 @@ class EnhancedJobParser:
             if len(text) > 50:  # Only include substantial paragraphs
                 description_parts.append(text)
         
-        return '\n\n'.join(description_parts) if description_parts else "Description Not Found"
+        # Also look for div elements with substantial text
+        divs = soup.find_all('div')
+        for div in divs:
+            text = div.get_text().strip()
+            if len(text) > 100 and not any(child.name in ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'] for child in div.children):
+                description_parts.append(text)
+        
+        # Combine and clean up
+        if description_parts:
+            combined = '\n\n'.join(description_parts)
+            # Remove duplicates and clean up
+            lines = combined.split('\n')
+            unique_lines = []
+            seen = set()
+            for line in lines:
+                line = line.strip()
+                if line and line not in seen and len(line) > 10:
+                    seen.add(line)
+                    unique_lines.append(line)
+            return '\n\n'.join(unique_lines)
+        
+        return "Description Not Found"
 
     def _safe_extract_text(self, driver, selectors: List[str]) -> str:
         """Safely extract text from element using multiple selectors"""
@@ -570,31 +894,169 @@ class EnhancedJobParser:
         return ""
 
     def _extract_company_info(self, driver) -> Dict[str, Any]:
-        """Extract comprehensive company information"""
+        """Extract comprehensive company information from LinkedIn"""
         try:
-            return {
-                'size': self._safe_extract_text(driver, [".jobs-unified-top-card__company-name + div"]),
-                'industry': self._safe_extract_text(driver, [".job-details-jobs-unified-top-card__company-name + div"]),
-                'website': self._safe_extract_attribute(driver, [".jobs-company__company-logo"], 'href')
-            }
-        except:
+            company_info = {}
+            
+            # Company size
+            size_selectors = [
+                ".jobs-unified-top-card__company-name + div",
+                ".job-details-jobs-unified-top-card__company-name + div",
+                ".company-info [class*='size']",
+                ".employer-info [class*='size']",
+                "[class*='company-size']",
+                "[class*='employee-count']"
+            ]
+            company_info['size'] = self._safe_extract_text(driver, size_selectors)
+            
+            # Company industry
+            industry_selectors = [
+                ".company-info [class*='industry']",
+                ".employer-info [class*='industry']",
+                "[class*='company-industry']",
+                "[class*='business-sector']",
+                ".company-details [class*='industry']"
+            ]
+            company_info['industry'] = self._safe_extract_text(driver, industry_selectors)
+            
+            # Company website
+            website_selectors = [
+                ".jobs-company__company-logo",
+                "a[href*='http'][class*='company']",
+                "a[href*='www'][class*='company']",
+                ".company-website a",
+                ".employer-website a"
+            ]
+            company_info['website'] = self._safe_extract_attribute(driver, website_selectors, 'href')
+            
+            # Company type
+            type_selectors = [
+                ".company-info [class*='type']",
+                ".employer-info [class*='type']",
+                "[class*='company-type']",
+                "[class*='business-type']"
+            ]
+            company_info['company_type'] = self._safe_extract_text(driver, type_selectors)
+            
+            # Company specialties
+            specialties_selectors = [
+                ".company-info [class*='specialties']",
+                ".employer-info [class*='specialties']",
+                "[class*='company-specialties']",
+                "[class*='focus-areas']"
+            ]
+            specialties_text = self._safe_extract_text(driver, specialties_selectors)
+            if specialties_text:
+                company_info['specialties'] = [s.strip() for s in specialties_text.split(',') if s.strip()]
+            
+            # Company description
+            desc_selectors = [
+                ".company-info [class*='description']",
+                ".employer-info [class*='description']",
+                "[class*='company-description']",
+                "[class*='about-company']"
+            ]
+            company_info['description'] = self._safe_extract_text(driver, desc_selectors)
+            
+            return company_info
+        except Exception as e:
+            print(f"Error extracting company info: {e}")
             return {}
 
     def _extract_job_insights(self, driver) -> Dict[str, Any]:
-        """Extract job insights and additional details"""
+        """Extract comprehensive job insights and additional details from LinkedIn"""
         try:
             insights = {}
-            insight_elements = driver.find_elements(By.CSS_SELECTOR, ".job-details-preferences-and-skills")
-            for element in insight_elements:
-                text = element.text
-                if 'seniority level' in text.lower():
-                    insights['seniority_level'] = text
-                elif 'employment type' in text.lower():
-                    insights['employment_type'] = text
-                elif 'job function' in text.lower():
-                    insights['job_function'] = text
+            
+            # Job insights section
+            insight_selectors = [
+                ".job-details-preferences-and-skills",
+                ".job-insights",
+                ".job-preferences",
+                ".job-details__insights",
+                "[class*='job-insights']",
+                "[class*='job-preferences']"
+            ]
+            
+            for selector in insight_selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for element in elements:
+                        text = element.text.strip()
+                        if text:
+                            # Extract seniority level
+                            if 'seniority level' in text.lower() or 'level' in text.lower():
+                                insights['seniority_level'] = text
+                            # Extract employment type
+                            elif 'employment type' in text.lower() or 'job type' in text.lower():
+                                insights['employment_type'] = text
+                            # Extract job function
+                            elif 'job function' in text.lower() or 'function' in text.lower():
+                                insights['job_function'] = text
+                            # Extract industries
+                            elif 'industries' in text.lower():
+                                insights['industries'] = text
+                            # Extract experience level
+                            elif 'experience' in text.lower() and 'level' in text.lower():
+                                insights['experience_level'] = text
+                except Exception as e:
+                    continue
+            
+            # Additional job details
+            additional_selectors = [
+                ".job-details__additional-info",
+                ".job-meta",
+                ".job-requirements-summary",
+                "[class*='job-requirements']",
+                "[class*='job-qualifications']"
+            ]
+            
+            for selector in additional_selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for element in elements:
+                        text = element.text.strip()
+                        if text:
+                            # Extract salary information
+                            if any(word in text.lower() for word in ['salary', 'compensation', 'pay', '$']):
+                                insights['salary_info'] = text
+                            # Extract benefits
+                            elif any(word in text.lower() for word in ['benefits', 'perks', 'insurance', '401k']):
+                                insights['benefits'] = text
+                            # Extract requirements
+                            elif any(word in text.lower() for word in ['requirements', 'qualifications', 'skills']):
+                                insights['requirements'] = text
+                            # Extract responsibilities
+                            elif any(word in text.lower() for word in ['responsibilities', 'duties', 'tasks']):
+                                insights['responsibilities'] = text
+                except Exception as e:
+                    continue
+            
+            # Extract company culture and work environment
+            culture_selectors = [
+                ".company-culture",
+                ".work-environment",
+                ".company-values",
+                "[class*='culture']",
+                "[class*='environment']"
+            ]
+            
+            for selector in culture_selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for element in elements:
+                        text = element.text.strip()
+                        if text and len(text) > 20:
+                            if 'culture' in selector.lower():
+                                insights['company_culture'] = text
+                            elif 'environment' in selector.lower():
+                                insights['work_environment'] = text
+                except Exception as e:
+                    continue
+            
             return insights
-        except:
+        except Exception as e:
+            print(f"Error extracting job insights: {e}")
             return {}
 
     def _safe_extract_attribute(self, driver, selectors: List[str], attribute: str) -> str:
