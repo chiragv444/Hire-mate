@@ -7,7 +7,6 @@ from datetime import datetime
 
 from ..core.auth import get_current_user
 from ..core.config import settings
-from ..services.resume_parser import resume_parser
 from ..core.firebase import firebase_service
 from ..services.firebase_storage import firebase_storage_service
 from ..models.resume import ResumeUploadRequest, ResumeAnalysisResponse, ResumePreviewResponse
@@ -58,11 +57,22 @@ async def upload_resume(
             'upload_date': datetime.now()
         }
         
-        # Parse resume
-        parsed_data = await resume_parser.parse_resume(
-            file_url, 
-            file.content_type
-        )
+        # For now, we'll use a simplified approach since we removed the heavy resume parser
+        # In the future, you can integrate with your LangChain + OpenAI implementation
+        parsed_data = {
+            'raw_text': 'Resume content extracted (AI parsing coming soon with LangChain + OpenAI)',
+            'skills': {
+                'technical': [],
+                'soft': [],
+                'domain': []
+            },
+            'experience': [],
+            'education': [],
+            'contact_info': {},
+            'summary': None,
+            'languages': [],
+            'certifications': []
+        }
         
         # Prepare resume data for Firestore
         resume_data = {
@@ -88,7 +98,7 @@ async def upload_resume(
         
         return ResumeAnalysisResponse(
             success=True,
-            message="Resume uploaded and parsed successfully",
+            message="Resume uploaded successfully. AI parsing coming soon with LangChain + OpenAI integration.",
             resume_id=resume_id,
             metadata=file_metadata,
             parsed_data=parsed_data,
@@ -146,11 +156,22 @@ async def upload_resume_onboarding(
             'upload_date': datetime.now()
         }
         
-        # Parse resume
-        parsed_data = await resume_parser.parse_resume(
-            file_url, 
-            file.content_type
-        )
+        # For now, we'll use a simplified approach since we removed the heavy resume parser
+        # In the future, you can integrate with your LangChain + OpenAI implementation
+        parsed_data = {
+            'raw_text': 'Resume content extracted (AI parsing coming soon with LangChain + OpenAI)',
+            'skills': {
+                'technical': [],
+                'soft': [],
+                'domain': []
+            },
+            'experience': [],
+            'education': [],
+            'contact_info': {},
+            'summary': None,
+            'languages': [],
+            'certifications': []
+        }
         
         # Prepare resume data for Firestore
         resume_data = {
@@ -177,7 +198,7 @@ async def upload_resume_onboarding(
         
         return ResumeAnalysisResponse(
             success=True,
-            message="Resume uploaded and set as default",
+            message="Resume uploaded and set as default. AI parsing coming soon with LangChain + OpenAI integration.",
             resume_id=resume_id,
             metadata=file_metadata,
             parsed_data=parsed_data,

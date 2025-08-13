@@ -7,8 +7,6 @@ from datetime import datetime
 
 from ..core.auth import get_current_user
 from ..core.config import settings
-from ..services.resume_parser import resume_parser
-from ..services.job_scraper import job_scraper
 from ..core.firebase import firebase_service
 from ..services.firebase_storage import firebase_storage_service
 from ..models.analysis import (
@@ -65,11 +63,22 @@ async def start_new_analysis(
             'upload_date': datetime.now()
         }
         
-        # Parse resume
-        parsed_data = await resume_parser.parse_resume(
-            file_metadata['file_path'], 
-            file_metadata['file_type']
-        )
+        # For now, we'll use a simplified approach since we removed the heavy resume parser
+        # In the future, you can integrate with your LangChain + OpenAI implementation
+        parsed_data = {
+            'raw_text': 'Resume content extracted (AI parsing coming soon with LangChain + OpenAI)',
+            'skills': {
+                'technical': [],
+                'soft': [],
+                'domain': []
+            },
+            'experience': [],
+            'education': [],
+            'contact_info': {},
+            'summary': None,
+            'languages': [],
+            'certifications': []
+        }
         
         # Prepare resume data for Firestore
         resume_data = {
@@ -102,7 +111,7 @@ async def start_new_analysis(
 
         return AnalysisStartResponse(
             success=True,
-            message="Resume uploaded and parsed successfully",
+            message="Resume uploaded successfully. AI parsing coming soon with LangChain + OpenAI integration.",
             analysis_id=analysis_id,
             resume_id=resume_id,
             preview={
@@ -133,44 +142,23 @@ async def analyze_job_description(
     Analyze job description (either pasted text or LinkedIn URL)
     """
     try:
-        job_data = {}
-        scraped_data = None
+        # For now, we'll use a simplified approach since we removed the heavy job scraper
+        # In the future, you can integrate with your LangChain + OpenAI implementation
         
-        # If LinkedIn URL is provided, scrape it first
-        if request.linkedin_url:
-            try:
-                scraped_data = await job_scraper.scrape_linkedin_job(str(request.linkedin_url))
-                # Use scraped description if available, otherwise use provided description
-                description_to_parse = scraped_data.get('description', request.job_description)
-                
-                # If scraping failed but returned error structure, use provided description
-                if scraped_data.get('scraping_error'):
-                    description_to_parse = request.job_description
-                    
-            except Exception as e:
-                # If scraping fails, use the provided description
-                description_to_parse = request.job_description
-                scraped_data = {'error': str(e)}
-        else:
-            description_to_parse = request.job_description
-        
-        # Parse the job description
-        parsed_data = await job_scraper.parse_job_description(description_to_parse)
-        
-        # Prepare job data for Firestore
+        # Basic job data extraction
         job_data = {
-            'title': parsed_data.get('title', scraped_data.get('title', 'Job Title')),
-            'company': parsed_data.get('company', scraped_data.get('company', 'Company')),
-            'location': parsed_data.get('location', scraped_data.get('location', 'Location')),
-            'description': description_to_parse,
-            'skills': parsed_data.get('skills', []),
-            'requirements': parsed_data.get('requirements', []),
-            'responsibilities': parsed_data.get('responsibilities', []),
-            'qualifications': parsed_data.get('qualifications', []),
-            'keywords': parsed_data.get('keywords', []),
-            'experience_level': parsed_data.get('experience_level', scraped_data.get('experience_level')),
-            'job_type': parsed_data.get('job_type', scraped_data.get('job_type')),
-            'salary_info': parsed_data.get('salary_info', scraped_data.get('salary_range')),
+            'title': 'Job Title (Please provide more details)',
+            'company': 'Company (Please provide more details)',
+            'location': 'Location (Please provide more details)',
+            'description': request.job_description or 'No description provided',
+            'skills': [],
+            'requirements': [],
+            'responsibilities': [],
+            'qualifications': [],
+            'keywords': [],
+            'experience_level': None,
+            'job_type': None,
+            'salary_info': None,
             'linkedin_url': str(request.linkedin_url) if request.linkedin_url else None,
             'source': 'linkedin' if request.linkedin_url else 'manual',
             'analysis_id': request.analysis_id if hasattr(request, 'analysis_id') else None
@@ -213,8 +201,8 @@ async def analyze_job_description(
                 'salary_info': job_data['salary_info']
             },
             'description': {
-                'full_text': description_to_parse,
-                'summary': description_to_parse[:300] + '...' if len(description_to_parse) > 300 else description_to_parse
+                'full_text': job_data['description'],
+                'summary': job_data['description'][:300] + '...' if len(job_data['description']) > 300 else job_data['description']
             },
             'requirements': job_data['requirements'],
             'responsibilities': job_data['responsibilities'],
@@ -225,10 +213,10 @@ async def analyze_job_description(
 
         return JobAnalysisResponse(
             success=True,
-            message="Job description analyzed successfully",
+            message="Job description received. AI analysis coming soon with LangChain + OpenAI integration.",
             job_id=request.analysis_id,  # The job_id is now the analysis_id
             parsed_results=formatted_results,
-            scraped_data=scraped_data if not scraped_data.get('scraping_error') else None,
+            scraped_data=None,
             source=job_data['source']
         )
         
@@ -249,12 +237,10 @@ async def perform_analysis_match(
     Perform resume-job matching analysis
     """
     try:
-        # Get resume data
-        user_ref = firebase_service.db.collection('users').document(current_user['uid'])
-        resume_ref = user_ref.collection('resumes').document(request.resume_id)
-        resume_doc = resume_ref.get()
+        # Get analysis data
+        analysis_doc = firebase_service.get_analysis_session(current_user['uid'], request.analysis_id)
         
-        if not resume_doc.exists:
+        if not analysis_doc:
             raise HTTPException(
                 status_code=404,
                 detail="Analysis session not found"

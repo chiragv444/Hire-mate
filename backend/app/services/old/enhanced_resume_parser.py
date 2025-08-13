@@ -9,8 +9,8 @@ import re
 
 # Try to import langchain dependencies, fallback to None if not available
 try:
-    from langchain_community.llms import OpenAI  # Updated import
-    from langchain_openai import ChatOpenAI  # Updated import
+    from langchain.llms import OpenAI  # unused but retained to avoid breaking imports elsewhere
+    from langchain.chat_models import ChatOpenAI
     from langchain.prompts import PromptTemplate
     from langchain.output_parsers import PydanticOutputParser
     from pydantic import BaseModel, Field

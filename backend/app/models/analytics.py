@@ -111,7 +111,7 @@ class PerformAnalysisResponse(BaseModel):
     success: bool
     message: str
     analytics_id: str
-    results: AnalysisResults
+    results: Dict[str, Any]  # Changed from AnalysisResults to Dict[str, Any] to handle converted dict
 
 class AnalyticsHistoryResponse(BaseModel):
     """Response for analytics history"""

@@ -6,49 +6,33 @@ passlib[bcrypt]==1.7.4
 python-dotenv==1.0.0
 firebase-admin==6.2.0
 
-# PDF and Document Processing
+# Web Scraping (needed for enhanced_job_parser.py)
+selenium==4.15.2
+webdriver-manager==4.0.1
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# Document Processing (needed for enhanced_resume_parser.py)
 PyPDF2==3.0.1
 python-docx==1.1.0
 pdfplumber==0.9.0
-pymupdf==1.23.8
-
-# Web Scraping
-beautifulsoup4==4.12.2
-requests==2.31.0
-selenium==4.15.2
-webdriver-manager==4.0.1
-lxml==4.9.3
 
 # File Handling
 aiofiles==23.2.1
 
-# NLP and Text Processing
-spacy==3.7.2
-nltk==3.8.1
-textblob==0.17.1
-fuzzywuzzy==0.18.0
-python-levenshtein==0.21.1
-
-# Machine Learning
-pandas==2.1.3
-numpy==1.25.2
-scikit-learn==1.3.2
-transformers==4.35.2
-torch==2.1.1
-sentence-transformers==2.2.2
-
-# LangChain and OpenAI (for enhanced resume parsing)
-langchain==0.0.350
-openai==1.3.0
-
-# API and Validation
-pydantic==2.5.0
-pydantic-settings==2.1.0
+# API and Validation (UPDATED for compatibility)
+pydantic>=2.7.4
+pydantic-settings>=2.4.0
 httpx==0.25.2
 
 # Utilities
 python-dateutil==2.8.2
-Pillow==10.1.0
-opencv-python==4.8.1.78
 uuid==1.30
-regex==2023.10.3 
+
+# LangChain and OpenAI (MODERN COMPATIBLE VERSIONS)
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.1.0
+openai>=1.40.0

@@ -17,12 +17,11 @@ from urllib.parse import urlparse, parse_qs
 
 # Try to import langchain dependencies, fallback to None if not available
 try:
-    from langchain_openai import ChatOpenAI  # Updated import
+    from langchain.chat_models import ChatOpenAI
     from langchain.prompts import PromptTemplate
     from langchain.output_parsers import PydanticOutputParser
     from pydantic import BaseModel, Field
     LANGCHAIN_AVAILABLE = True
-    print("LangChain available, using AI to parse job description")
 except ImportError:
     print("LangChain not available, using basic parsing only")
     LANGCHAIN_AVAILABLE = False
@@ -166,7 +165,6 @@ class EnhancedJobParser:
                         input_variables=["job_text"],
                         partial_variables={"format_instructions": self.parser.get_format_instructions()}
                     )
-                    print("LangChain initialized successfully with OpenAI")
                 except Exception as e:
                     print(f"Error initializing LangChain: {e}, falling back to basic parsing")
                     self.langchain_available = False
@@ -207,9 +205,6 @@ class EnhancedJobParser:
     async def scrape_linkedin_job(self, url: str) -> Dict[str, Any]:
         """Scrape job information from LinkedIn with enhanced data extraction"""
         try:
-            print(f"\n=== Starting LinkedIn job scraping ===")
-            print(f"Input URL: {url}")
-            
             if not self._is_valid_linkedin_job_url(url):
                 raise ValueError("Invalid LinkedIn job URL")
             
@@ -223,19 +218,13 @@ class EnhancedJobParser:
                 print(f"Using original URL: {direct_url}")
             
             # Try multiple scraping methods with the direct URL
-            print("\n--- Trying Selenium scraping ---")
             raw_data = self._scrape_with_selenium(direct_url)
-            
             if not raw_data or not raw_data.get('description'):
-                print("\n--- Selenium failed, trying enhanced requests method ---")
-                raw_data = self._scrape_with_requests_enhanced(direct_url)
-            
-            if not raw_data or not raw_data.get('description'):
-                print("\n--- Enhanced requests failed, trying basic requests method ---")
+                print("Selenium failed, trying requests method...")
                 raw_data = self._scrape_with_requests(direct_url)
             
             if not raw_data or not raw_data.get('description'):
-                print("\n--- All scraping methods failed, using fallback parsing ---")
+                print("Both scraping methods failed, using fallback parsing...")
                 # Create minimal raw data for fallback
                 raw_data = {
                     'url': direct_url,
@@ -250,31 +239,20 @@ class EnhancedJobParser:
             if not raw_data.get('description'):
                 raw_data['description'] = 'Job description could not be extracted. Please provide the job description manually.'
             
-            print(f"\n--- Raw data extracted ---")
-            print(f"Title: {raw_data.get('title')}")
-            print(f"Company: {raw_data.get('company_name')}")
-            print(f"Location: {raw_data.get('location')}")
-            print(f"Description length: {len(raw_data.get('description', ''))}")
-            
             # Parse with LangChain if available, otherwise use basic parsing
             if self.langchain_available:
-                print("\n--- Using LangChain parsing ---")
                 parsed_data = self._parse_with_langchain(raw_data)
             else:
-                print("\n--- Using basic parsing ---")
                 parsed_data = self._basic_parse_job(raw_data)
             
             # Add raw data and generate detailed summary
             parsed_data['raw_data'] = raw_data
             parsed_data['detailed_summary'] = self._generate_detailed_summary(parsed_data)
             
-            print(f"\n=== LinkedIn job scraping completed ===")
             return parsed_data
             
         except Exception as e:
             print(f"Error scraping LinkedIn job: {e}")
-            import traceback
-            traceback.print_exc()
             raise
 
     async def parse_job_description(self, job_text: str, linkedin_url: Optional[str] = None) -> Dict[str, Any]:
@@ -307,102 +285,10 @@ class EnhancedJobParser:
             print(f"Error parsing job text: {e}")
             raise
 
-    def check_system_dependencies(self) -> Dict[str, bool]:
-        """Check if system dependencies are available"""
-        dependencies = {}
-        
-        try:
-            # Check if Chrome is available (cross-platform)
-            import subprocess
-            import platform
-            
-            chrome_paths = []
-            if platform.system() == "Darwin":  # macOS
-                chrome_paths = [
-                    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-                    "/Applications/Chromium.app/Contents/MacOS/Chromium"
-                ]
-            elif platform.system() == "Linux":
-                chrome_paths = ["google-chrome", "chromium-browser", "chromium"]
-            elif platform.system() == "Windows":
-                chrome_paths = [
-                    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-                ]
-            
-            chrome_found = False
-            for chrome_path in chrome_paths:
-                try:
-                    if platform.system() == "Windows":
-                        result = subprocess.run(['where', chrome_path], capture_output=True, text=True)
-                    else:
-                        result = subprocess.run(['which', chrome_path], capture_output=True, text=True)
-                    if result.returncode == 0:
-                        chrome_found = True
-                        break
-                except:
-                    continue
-            
-            dependencies['chrome_installed'] = chrome_found
-            
-            # Check if ChromeDriver can be installed
-            try:
-                from webdriver_manager.chrome import ChromeDriverManager
-                ChromeDriverManager().install()
-                dependencies['chromedriver_available'] = True
-            except Exception as e:
-                print(f"ChromeDriver check failed: {e}")
-                dependencies['chromedriver_available'] = False
-            
-            # Check if Selenium is working
-            try:
-                from selenium import webdriver
-                from selenium.webdriver.chrome.options import Options
-                dependencies['selenium_available'] = True
-            except Exception as e:
-                print(f"Selenium check failed: {e}")
-                dependencies['selenium_available'] = False
-                
-        except Exception as e:
-            print(f"System dependency check failed: {e}")
-            dependencies['check_failed'] = True
-            
-        return dependencies
-
-    def test_parser(self) -> bool:
-        """Test if the job parser is working correctly"""
-        try:
-            print("Testing job parser...")
-            
-            # Check system dependencies
-            deps = self.check_system_dependencies()
-            print(f"System dependencies: {deps}")
-            
-            # Test basic initialization
-            if not self.langchain_available:
-                print("LangChain not available, but basic parsing should work")
-                return True
-            
-            # Test if we can create a simple prompt
-            test_text = "Software Engineer position at Tech Company"
-            try:
-                prompt = self.prompt_template.format(job_text=test_text)
-                print("Prompt template working correctly")
-                return True
-            except Exception as e:
-                print(f"Prompt template test failed: {e}")
-                return False
-                
-        except Exception as e:
-            print(f"Parser test failed: {e}")
-            return False
-
     def _scrape_with_selenium(self, url: str) -> Dict[str, Any]:
         """Scrape LinkedIn job using Selenium for dynamic content"""
         driver = None
         try:
-            print(f"Starting Selenium scraping for URL: {url}")
-            
             # Setup Chrome options
             chrome_options = Options()
             chrome_options.add_argument("--headless")
@@ -412,46 +298,23 @@ class EnhancedJobParser:
             chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument(f"user-agent={self.headers['User-Agent']}")
             
-            # Initialize driver with better error handling
-            try:
-                print("Installing Chrome driver...")
-                service = Service(ChromeDriverManager().install())
-                print("Initializing Chrome driver...")
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            except Exception as driver_error:
-                print(f"Chrome driver initialization failed: {driver_error}")
-                print("This might be due to Chrome not being installed or ChromeDriver issues")
-                print("Falling back to requests method...")
-                return None
+            # Initialize driver
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
             
             # Load the page
-            print(f"Loading page: {url}")
             driver.get(url)
             
             # Wait for content to load
-            print("Waiting for page content to load...")
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
             
             # Additional wait for dynamic content
-            print("Waiting for dynamic content...")
-            time.sleep(5)
+            time.sleep(3)
             
             # Get page source and parse with BeautifulSoup
-            print("Extracting page source...")
-            page_source = driver.page_source
-            print(f"Page source length: {len(page_source)}")
-            
-            soup = BeautifulSoup(page_source, 'html.parser')
-            
-            # Debug: Save HTML content for inspection
-            try:
-                with open(f"linkedin_selenium_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html", "w", encoding="utf-8") as f:
-                    f.write(page_source)
-                print("HTML content saved to debug file (Selenium method)")
-            except Exception as e:
-                print(f"Could not save debug HTML: {e}")
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
             
             # Extract job information using BeautifulSoup
             job_data = {
@@ -463,44 +326,22 @@ class EnhancedJobParser:
                 'description': self._extract_job_description(soup)
             }
             
-            print(f"Selenium scraping completed. Title: {job_data['title']}, Company: {job_data['company_name']}")
-            print(f"Description length: {len(job_data['description'])}")
-            
             return job_data
             
         except Exception as e:
             print(f"Selenium scraping failed: {e}")
-            import traceback
-            traceback.print_exc()
             return None
         finally:
             if driver:
-                print("Closing Chrome driver...")
-                try:
-                    driver.quit()
-                except Exception as quit_error:
-                    print(f"Error closing driver: {quit_error}")
+                driver.quit()
 
     def _scrape_with_requests(self, url: str) -> Dict[str, Any]:
         """Fallback scraping method using requests and BeautifulSoup"""
         try:
-            print(f"Starting requests scraping for URL: {url}")
-            
-            response = requests.get(url, headers=self.headers, timeout=15)
+            response = requests.get(url, headers=self.headers, timeout=10)
             response.raise_for_status()
             
-            print(f"Response status: {response.status_code}")
-            print(f"Response content length: {len(response.content)}")
-            
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Debug: Save HTML content for inspection
-            try:
-                with open(f"linkedin_basic_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html", "w", encoding="utf-8") as f:
-                    f.write(response.text)
-                print("HTML content saved to debug file (basic method)")
-            except Exception as e:
-                print(f"Could not save debug HTML: {e}")
             
             job_data = {
                 'url': url,
@@ -511,105 +352,10 @@ class EnhancedJobParser:
                 'description': self._extract_job_description(soup)
             }
             
-            print(f"Requests scraping completed. Title: {job_data['title']}, Company: {job_data['company_name']}")
-            print(f"Description length: {len(job_data['description'])}")
-            
             return job_data
             
         except Exception as e:
             print(f"Requests scraping failed: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-
-    def _scrape_with_requests_enhanced(self, url: str) -> Dict[str, Any]:
-        """Enhanced requests-based scraping with better LinkedIn handling"""
-        try:
-            print(f"Starting enhanced requests scraping for URL: {url}")
-            
-            # Use more realistic headers
-            enhanced_headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Cache-Control': 'max-age=0'
-            }
-            
-            # First try to get the page with redirects allowed
-            session = requests.Session()
-            session.headers.update(enhanced_headers)
-            
-            print("Making initial request...")
-            response = session.get(url, timeout=20, allow_redirects=True)
-            response.raise_for_status()
-            
-            print(f"Response status: {response.status_code}")
-            print(f"Final URL: {response.url}")
-            print(f"Response content length: {len(response.content)}")
-            
-            # Check if we got a login page or error page
-            content_text = response.text.lower()
-            if 'sign in' in content_text or 'login' in content_text:
-                print("LinkedIn requires authentication - cannot scrape without login")
-                return None
-            
-            if 'page not found' in content_text or 'error' in content_text:
-                print("Page not found or error page")
-                return None
-            
-            # Check if we're still on a collection page
-            if 'collections' in response.url:
-                print("Still on collection page, trying to extract job ID and construct direct URL")
-                # Extract job ID from the original URL
-                job_id = self._extract_job_id_from_url(url)
-                if job_id:
-                    direct_url = self._construct_direct_job_url(job_id)
-                    print(f"Trying direct URL: {direct_url}")
-                    
-                    # Try the direct URL
-                    direct_response = session.get(direct_url, timeout=20)
-                    if direct_response.status_code == 200:
-                        response = direct_response
-                        print("Successfully accessed direct job URL")
-                    else:
-                        print(f"Direct URL failed with status: {direct_response.status_code}")
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Debug: Save HTML content for inspection
-            try:
-                with open(f"linkedin_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html", "w", encoding="utf-8") as f:
-                    f.write(response.text)
-                print("HTML content saved to debug file")
-            except Exception as e:
-                print(f"Could not save debug HTML: {e}")
-            
-            # Try to extract job information
-            job_data = {
-                'url': response.url,  # Use final URL
-                'scraped_at': datetime.now().isoformat(),
-                'title': self._extract_job_title(soup),
-                'company_name': self._extract_company_name(soup),
-                'location': self._extract_location(soup),
-                'description': self._extract_job_description(soup)
-            }
-            
-            print(f"Enhanced requests scraping completed. Title: {job_data['title']}, Company: {job_data['company_name']}")
-            print(f"Description length: {len(job_data['description'])}")
-            
-            return job_data
-            
-        except Exception as e:
-            print(f"Enhanced requests scraping failed: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _parse_with_langchain(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -621,22 +367,16 @@ class EnhancedJobParser:
             
             # Create prompt and get response
             prompt = self.prompt_template.format(job_text=job_text)
-            
-            # Use the working predict method from old code
             response = self.llm.predict(prompt)
-            response_text = str(response)
-            
-            print(f"LangChain response received, length: {len(response_text)}")
             
             # Parse response
-            parsed_result = self.parser.parse(response_text)
+            parsed_result = self.parser.parse(response)
             result_dict = parsed_result.dict()
             
             # Add LinkedIn URL if available
             if raw_data.get('url'):
                 result_dict['linkedin_url'] = raw_data['url']
             
-            print("LangChain parsing completed successfully")
             return result_dict
             
         except Exception as e:
@@ -922,73 +662,9 @@ class EnhancedJobParser:
         
         return "Job Title Not Found"
     
-    def _extract_company_from_description(self, description: str) -> str:
-        """Extract company name from job description text as fallback"""
-        try:
-            # Common patterns for company names in job descriptions
-            patterns = [
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is\s+a',  # "Company Name is a"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+are\s+hiring',  # "Company Name are hiring"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is\s+seeking',  # "Company Name is seeking"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is\s+looking',  # "Company Name is looking"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is\s+an',  # "Company Name is an"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+has\s+an',  # "Company Name has an"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+offers',  # "Company Name offers"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+provides',  # "Company Name provides"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+delivers',  # "Company Name delivers"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+specializes',  # "Company Name specializes"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+focuses',  # "Company Name focuses"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is\s+committed',  # "Company Name is committed"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is\s+dedicated',  # "Company Name is dedicated"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is\s+an\s+equal',  # "Company Name is an equal"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+headquarters',  # "Company Name headquarters"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is\s+located',  # "Company Name is located"
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, description, re.IGNORECASE)
-                if match:
-                    company_name = match.group(1).strip()
-                    # Validate the company name
-                    if len(company_name) > 2 and len(company_name) < 100:
-                        # Skip common non-company text
-                        skip_texts = ['clear text', 'you may also apply directly on company website', 'apply directly on company website']
-                        if not any(skip in company_name.lower() for skip in skip_texts):
-                            print(f"Found company name from description pattern '{pattern}': {company_name}")
-                            return company_name
-            
-            # Look for company name in the first few sentences
-            sentences = description.split('.')
-            for sentence in sentences[:3]:  # Check first 3 sentences
-                sentence = sentence.strip()
-                if len(sentence) > 20:  # Only check substantial sentences
-                    # Look for capitalized words that might be company names
-                    words = sentence.split()
-                    for i, word in enumerate(words):
-                        if (word[0].isupper() and len(word) > 2 and 
-                            any(indicator in word.lower() for indicator in ['systems', 'inc', 'llc', 'ltd', 'corp', 'corporation', 'company', 'group', 'tech', 'technologies', 'solutions', 'services'])):
-                            # Try to get the full company name (multiple words)
-                            potential_name = word
-                            # Look ahead for more capitalized words
-                            for j in range(i + 1, min(i + 4, len(words))):
-                                if words[j][0].isupper() and len(words[j]) > 2:
-                                    potential_name += ' ' + words[j]
-                                else:
-                                    break
-                            
-                            if len(potential_name) > 2 and len(potential_name) < 100:
-                                print(f"Found company name from sentence analysis: {potential_name}")
-                                return potential_name
-            
-            return ""
-            
-        except Exception as e:
-            print(f"Error extracting company from description: {e}")
-            return ""
-
     def _extract_company_name(self, soup: BeautifulSoup) -> str:
         """Extract company name from LinkedIn page with comprehensive selectors"""
-        # Comprehensive selectors for company name extraction - restored from working old code
+        # Comprehensive selectors for company name extraction
         selectors = [
             # Primary selectors
             '.job-details-jobs-unified-top-card__company-name a',
@@ -1056,7 +732,7 @@ class EnhancedJobParser:
     
     def _extract_location(self, soup: BeautifulSoup) -> str:
         """Extract job location from LinkedIn page with comprehensive selectors"""
-        # Comprehensive selectors for location extraction - restored from working old code
+        # Comprehensive selectors for location extraction
         selectors = [
             # Primary selectors
             '.job-details-jobs-unified-top-card__bullet',
@@ -1395,57 +1071,21 @@ class EnhancedJobParser:
 
     def _is_valid_linkedin_job_url(self, url: str) -> bool:
         """Validate LinkedIn job URL"""
-        if not url:
-            return False
-            
-        # Check if it's a LinkedIn URL
-        if 'linkedin.com/jobs' not in url:
-            return False
-            
-        # Check for various LinkedIn job URL patterns
-        valid_patterns = [
-            r'linkedin\.com/jobs/view/\d+',  # Direct job view
-            r'linkedin\.com/jobs/collections/.*currentJobId=\d+',  # Collection with job ID
-            r'linkedin\.com/jobs/\d+',  # Simple job ID
-            r'linkedin\.com/jobs/view/\d+.*',  # Job view with parameters
-        ]
-        
-        import re
-        for pattern in valid_patterns:
-            if re.search(pattern, url):
-                print(f"URL matches pattern: {pattern}")
-                return True
-        
-        print(f"URL does not match any valid LinkedIn job patterns: {url}")
-        return False
+        return 'linkedin.com/jobs' in url
     
     def _extract_job_id_from_url(self, url: str) -> Optional[str]:
         """Extract job ID from LinkedIn URL"""
         import re
-        print(f"Extracting job ID from URL: {url}")
-        
         # Handle collection URLs like /collections/recommended/?currentJobId=4278917507
         job_id_match = re.search(r'currentJobId=([0-9]+)', url)
         if job_id_match:
-            job_id = job_id_match.group(1)
-            print(f"Found job ID from collection URL: {job_id}")
-            return job_id
+            return job_id_match.group(1)
         
         # Handle direct job URLs like /jobs/view/4278917507
         job_id_match = re.search(r'/jobs/view/([0-9]+)', url)
         if job_id_match:
-            job_id = job_id_match.group(1)
-            print(f"Found job ID from direct URL: {job_id}")
-            return job_id
+            return job_id_match.group(1)
         
-        # Handle other LinkedIn job URL formats
-        job_id_match = re.search(r'/jobs/([0-9]+)', url)
-        if job_id_match:
-            job_id = job_id_match.group(1)
-            print(f"Found job ID from other format: {job_id}")
-            return job_id
-        
-        print("No job ID found in URL")
         return None
     
     def _construct_direct_job_url(self, job_id: str) -> str:
@@ -1551,79 +1191,9 @@ class EnhancedJobParser:
         
         return qualifications[:10]  # Limit to 10 items
 
-    def _extract_location_from_description(self, description: str) -> str:
-        """Extract location from job description text as fallback"""
-        try:
-            # Common patterns for locations in job descriptions
-            patterns = [
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*[A-Z]{2}',  # "City, ST"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*[A-Z][a-z]+,\s*[A-Z]{2}',  # "City, County, ST"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*[A-Z][a-z]+',  # "City, State"
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*[A-Z][a-z]{2}',  # "City, Province"
-                r'based\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',  # "based in City"
-                r'office\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',  # "office in City"
-                r'work\s+from\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',  # "work from City"
-                r'headquarters\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',  # "headquarters in City"
-                r'located\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',  # "located in City"
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, description, re.IGNORECASE)
-                if match:
-                    location = match.group(1).strip()
-                    # Validate the location
-                    if len(location) > 2 and len(location) < 100:
-                        # Skip common non-location text
-                        skip_texts = ['clear text', 'you may also apply directly on company website', 'apply directly on company website']
-                        if not any(skip in location.lower() for skip in skip_texts):
-                            print(f"Found location from description pattern '{pattern}': {location}")
-                            return location
-            
-            # Look for specific city names in the description
-            common_cities = [
-                'toronto', 'san francisco', 'new york', 'london', 'chicago', 'los angeles', 'seattle',
-                'boston', 'austin', 'denver', 'atlanta', 'dallas', 'houston', 'phoenix', 'miami',
-                'philadelphia', 'detroit', 'minneapolis', 'portland', 'nashville', 'orlando', 'tampa'
-            ]
-            
-            for city in common_cities:
-                if city in description.lower():
-                    # Get the full city name (capitalized)
-                    city_index = description.lower().find(city)
-                    if city_index >= 0:
-                        # Extract the actual text around the city name
-                        start = max(0, city_index - 20)
-                        end = min(len(description), city_index + len(city) + 20)
-                        context = description[start:end]
-                        
-                        # Look for the capitalized version in the context
-                        for word in context.split():
-                            if word.lower() == city:
-                                print(f"Found city from description: {word}")
-                                return word
-            
-            # Look for remote/hybrid indicators
-            remote_indicators = ['remote', 'hybrid', 'on-site', 'onsite', 'work from home', 'wfh']
-            for indicator in remote_indicators:
-                if indicator in description.lower():
-                    print(f"Found location indicator from description: {indicator}")
-                    return indicator.title()
-            
-            return ""
-            
-        except Exception as e:
-            print(f"Error extracting location from description: {e}")
-            return ""
-
 # Initialize enhanced job parser
 try:
     enhanced_job_parser = EnhancedJobParser()
-    # Test the parser
-    if enhanced_job_parser:
-        test_result = enhanced_job_parser.test_parser()
-        print(f"Job parser initialization test: {'PASSED' if test_result else 'FAILED'}")
-    else:
-        print("Job parser initialization failed")
 except Exception as e:
     print(f"Error initializing enhanced job parser: {e}")
     enhanced_job_parser = None

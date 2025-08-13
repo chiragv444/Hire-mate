@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 
 from ..core.auth import get_current_user
-from ..services.job_scraper import job_scraper
 from ..core.firebase import firebase_service
 from ..models.job import JobInputRequest, JobAnalysisResponse, JobMatchRequest, JobMatchResponse
 
@@ -18,38 +17,23 @@ async def analyze_job_description(
     Analyze job description and extract structured information
     """
     try:
-        job_data = {}
-        scraped_data = None
+        # For now, we'll use a simplified approach since we removed the heavy job scraper
+        # In the future, you can integrate with your LangChain + OpenAI implementation
         
-        # If LinkedIn URL is provided, scrape it first
-        if request.linkedin_url:
-            try:
-                scraped_data = await job_scraper.scrape_linkedin_job(str(request.linkedin_url))
-                # Use scraped description if available, otherwise use provided description
-                description_to_parse = scraped_data.get('description', request.job_description)
-            except Exception as e:
-                # If scraping fails, use the provided description
-                description_to_parse = request.job_description
-        else:
-            description_to_parse = request.job_description
-        
-        # Parse the job description
-        parsed_data = await job_scraper.parse_job_description(description_to_parse)
-        
-        # Prepare job data for Firestore
+        # Basic job data extraction
         job_data = {
-            'title': parsed_data.get('title', 'Job Title'),
-            'company': parsed_data.get('company', 'Company'),
-            'location': parsed_data.get('location', 'Location'),
-            'description': parsed_data.get('description', ''),
-            'skills': parsed_data.get('skills', []),
-            'requirements': parsed_data.get('requirements', []),
-            'responsibilities': parsed_data.get('responsibilities', []),
-            'qualifications': parsed_data.get('qualifications', []),
-            'keywords': parsed_data.get('keywords', []),
-            'experience_level': parsed_data.get('experience_level'),
-            'job_type': parsed_data.get('job_type'),
-            'salary_info': parsed_data.get('salary_info'),
+            'title': 'Job Title (Please provide more details)',
+            'company': 'Company (Please provide more details)',
+            'location': 'Location (Please provide more details)',
+            'description': request.job_description or 'No description provided',
+            'skills': [],
+            'requirements': [],
+            'responsibilities': [],
+            'qualifications': [],
+            'keywords': [],
+            'experience_level': None,
+            'job_type': None,
+            'salary_info': None,
             'linkedin_url': str(request.linkedin_url) if request.linkedin_url else None,
             'source': 'linkedin' if request.linkedin_url else 'manual'
         }
@@ -62,10 +46,10 @@ async def analyze_job_description(
         
         return JobAnalysisResponse(
             success=True,
-            message="Job description analyzed successfully",
+            message="Job description received. AI analysis coming soon with LangChain + OpenAI integration.",
             job_id=job_id,
-            parsed_data=parsed_data,
-            scraped_data=scraped_data
+            parsed_data=job_data,
+            scraped_data=None
         )
         
     except HTTPException:
@@ -213,7 +197,7 @@ def _determine_fit_level(match_score: float) -> str:
         else:
             return "Not Fit"
     
-def _generate_suggestions(self, missing_skills: list, match_score: float) -> list:
+def _generate_suggestions(missing_skills: list, match_score: float) -> list:
         """Generate suggestions based on missing skills and match score"""
         suggestions = []
         

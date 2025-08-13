@@ -34,16 +34,6 @@ def main():
         print("❌ Failed to install dependencies")
         sys.exit(1)
     
-    # Download spaCy model
-    if not run_command("python -m spacy download en_core_web_sm", "Downloading spaCy model"):
-        print("❌ Failed to download spaCy model")
-        sys.exit(1)
-    
-    # Download NLTK data
-    if not run_command("python -c \"import nltk; nltk.download('punkt'); nltk.download('stopwords')\"", "Downloading NLTK data"):
-        print("❌ Failed to download NLTK data")
-        sys.exit(1)
-    
     # Note: Files will be uploaded to Firebase Storage instead of local directory
     print("✅ Firebase Storage will be used for file uploads")
     
@@ -51,12 +41,14 @@ def main():
     print("🎉 Setup completed successfully!")
     print("\n📋 Next steps:")
     print("1. Set up Firebase service account key (service-account-key.json)")
-    print("2. Run the backend: python run.py")
-    print("3. Access API docs: http://localhost:8000/docs")
+    print("2. Set up OpenAI API key in environment variables")
+    print("3. Run the backend: python run.py")
+    print("4. Access API docs: http://localhost:8000/docs")
     print("\n🔧 Configuration:")
     print("- Backend will run on: http://localhost:8000")
     print("- API prefix: /api/v1")
-    print("- File storage: Firebase Storage (gs://hire-mate.firebasestorage.app/resumes)")
+    print("- File storage: Firebase Storage")
+    print("- AI processing: OpenAI + LangChain")
 
 if __name__ == "__main__":
     main() 

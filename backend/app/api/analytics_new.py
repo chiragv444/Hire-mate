@@ -6,10 +6,8 @@ from datetime import datetime
 
 from ..core.auth import get_current_user
 from ..core.config import settings
-from ..services.resume_parser import resume_parser
 from ..services.enhanced_resume_parser import enhanced_resume_parser
 from ..services.enhanced_resume_analyzer import enhanced_resume_analyzer
-from ..services.job_scraper import job_scraper
 from ..services.enhanced_job_parser import enhanced_job_parser
 from ..services.firebase_simple import simplified_firebase_service
 from ..services.firebase_storage import firebase_storage_service
@@ -36,6 +34,55 @@ from ..models.resume_simple import (
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
+# Test endpoint for job parser
+@router.post("/test-job-parser")
+async def test_job_parser(
+    request: CreateAnalyticsRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Test endpoint to debug job parser issues
+    """
+    try:
+        if not enhanced_job_parser:
+            return JSONResponse(content={
+                "success": False,
+                "error": "Job parser not available",
+                "details": "The enhanced_job_parser is None"
+            })
+        
+        # Test the parser
+        test_result = enhanced_job_parser.test_parser()
+        
+        # Test URL validation
+        url_valid = enhanced_job_parser._is_valid_linkedin_job_url(request.linkedin_url) if request.linkedin_url else False
+        
+        # Test job ID extraction
+        job_id = None
+        if request.linkedin_url:
+            job_id = enhanced_job_parser._extract_job_id_from_url(request.linkedin_url)
+        
+        # Check system dependencies
+        system_deps = enhanced_job_parser.check_system_dependencies()
+        
+        return JSONResponse(content={
+            "success": True,
+            "parser_test": test_result,
+            "url_valid": url_valid,
+            "job_id": job_id,
+            "linkedin_url": request.linkedin_url,
+            "langchain_available": enhanced_job_parser.langchain_available,
+            "openai_key_set": bool(os.getenv("OPENAI_API_KEY")),
+            "system_dependencies": system_deps
+        })
+        
+    except Exception as e:
+        return JSONResponse(content={
+            "success": False,
+            "error": str(e),
+            "traceback": str(e.__traceback__)
+        })
+
 @router.post("/create", response_model=CreateAnalyticsResponse)
 async def create_analytics(
     request: CreateAnalyticsRequest,
@@ -46,53 +93,98 @@ async def create_analytics(
     This is called when user submits job description from the "New Analysis" page
     """
     try:
-        # Parse job description using enhanced parser
-        if request.linkedin_url:
-            # If LinkedIn URL is provided, scrape from LinkedIn using enhanced parser
-            parsed_job = await enhanced_job_parser.scrape_linkedin_job(request.linkedin_url)
+        # Check if we have a LinkedIn URL to scrape
+        if request.linkedin_url and enhanced_job_parser:
+            try:
+                print(f"Attempting to scrape LinkedIn job: {request.linkedin_url}")
+                # Use the enhanced job parser to scrape the LinkedIn job
+                scraped_job_data = await enhanced_job_parser.scrape_linkedin_job(request.linkedin_url)
+                
+                # Extract the scraped data
+                job_data = JobDescriptionData(
+                    title=scraped_job_data.get('title', 'Job Title Not Found'),
+                    company=scraped_job_data.get('company', {}).get('name', 'Company Not Found'),
+                    location=scraped_job_data.get('location', {}).get('full_location', 'Location Not Found'),
+                    description=scraped_job_data.get('description', str(request.job_description or 'No description provided')),
+                    linkedin_url=request.linkedin_url,
+                    parsed_skills=scraped_job_data.get('requirements', {}).get('required_skills', []),
+                    parsed_requirements=scraped_job_data.get('requirements', {}).get('required_skills', []),
+                    parsed_responsibilities=scraped_job_data.get('responsibilities', []),
+                    parsed_qualifications=scraped_job_data.get('qualifications', []),
+                    keywords=[],
+                    
+                    # Enhanced fields
+                    raw_data=scraped_job_data.get('raw_data', {}),
+                    detailed_summary=scraped_job_data.get('detailed_summary', 'AI analysis completed'),
+                    parsed_data=scraped_job_data,
+                    experience_level=scraped_job_data.get('requirements', {}).get('experience_level', ''),
+                    years_of_experience=scraped_job_data.get('requirements', {}).get('years_of_experience', ''),
+                    job_type=scraped_job_data.get('details', {}).get('job_type', ''),
+                    salary_info=scraped_job_data.get('salary', {}),
+                    benefits=[],
+                    company_info=scraped_job_data.get('company', {})
+                )
+                
+                print(f"LinkedIn job scraped successfully: {job_data.title} at {job_data.company}")
+                
+            except Exception as e:
+                print(f"LinkedIn scraping failed: {e}")
+                # Fall back to basic approach if scraping fails
+                job_data = JobDescriptionData(
+                    title='Job Title (Please provide more details)',
+                    company='Company (Please provide more details)',
+                    location='Location (Please provide more details)',
+                    description=str(request.job_description or 'No description provided'),
+                    linkedin_url=request.linkedin_url,
+                    parsed_skills=[],
+                    parsed_requirements=[],
+                    parsed_responsibilities=[],
+                    parsed_qualifications=[],
+                    keywords=[],
+                    
+                    # Enhanced fields
+                    raw_data={},
+                    detailed_summary=f'LinkedIn scraping failed: {str(e)}. Please provide job description manually.',
+                    parsed_data={},
+                    experience_level='',
+                    years_of_experience='',
+                    job_type='',
+                    salary_info={},
+                    benefits=[],
+                    company_info={}
+                )
         else:
-            # If no LinkedIn URL, parse the plain text job description using enhanced parser
-            parsed_job = await enhanced_job_parser.parse_job_description(request.job_description)
-        
-        # Extract comprehensive data from parsed job
-        company_info = parsed_job.get('company', {})
-        location_info = parsed_job.get('location', {})
-        requirements_info = parsed_job.get('requirements', {})
-        salary_info = parsed_job.get('salary', {})
-        benefits_info = parsed_job.get('benefits', {})
-        details_info = parsed_job.get('details', {})
-        
-        # Create job description data with enhanced fields
-        job_data = JobDescriptionData(
-            title=parsed_job.get('title', ''),
-            company=company_info.get('name', '') if isinstance(company_info, dict) else str(company_info or ''),
-            location=location_info.get('full_location', '') if isinstance(location_info, dict) else str(location_info or ''),
-            description=str(request.job_description or parsed_job.get('description') or ''),
-            linkedin_url=request.linkedin_url,
-            parsed_skills=requirements_info.get('required_skills', []) + requirements_info.get('preferred_skills', []),
-            parsed_requirements=parsed_job.get('qualifications', []),
-            parsed_responsibilities=parsed_job.get('responsibilities', []),
-            parsed_qualifications=parsed_job.get('qualifications', []),
-            keywords=requirements_info.get('required_skills', []),
-            
-            # Enhanced fields
-            raw_data=parsed_job.get('raw_data', {}),
-            detailed_summary=parsed_job.get('detailed_summary', ''),
-            parsed_data=parsed_job,
-            experience_level=requirements_info.get('experience_level', ''),
-            years_of_experience=requirements_info.get('years_of_experience', ''),
-            job_type=details_info.get('job_type', ''),
-            salary_info=salary_info,
-            benefits=benefits_info.get('other_benefits', []) if isinstance(benefits_info, dict) else [],
-            company_info=company_info
-        )
+            # No LinkedIn URL or parser not available, use basic approach
+            job_data = JobDescriptionData(
+                title='Job Title (Please provide more details)',
+                company='Company (Please provide more details)',
+                location='Location (Please provide more details)',
+                description=str(request.job_description or 'No description provided'),
+                linkedin_url=request.linkedin_url,
+                parsed_skills=[],
+                parsed_requirements=[],
+                parsed_responsibilities=[],
+                parsed_qualifications=[],
+                keywords=[],
+                
+                # Enhanced fields
+                raw_data={},
+                detailed_summary='AI analysis coming soon with LangChain + OpenAI integration',
+                parsed_data={},
+                experience_level='',
+                years_of_experience='',
+                job_type='',
+                salary_info={},
+                benefits=[],
+                company_info={}
+            )
         
         # Create analytics document with enhanced structure
         analytics_data = {
             'job_description': job_data.dict(),
-            'job_raw_data': parsed_job.get('raw_data', {}),
-            'job_detailed_summary': parsed_job.get('detailed_summary', ''),
-            'job_parsed_data': parsed_job,
+            'job_raw_data': job_data.raw_data,
+            'job_detailed_summary': job_data.detailed_summary,
+            'job_parsed_data': job_data.parsed_data,
             'resume': None,
             'results': None,
             'status': 'in_process',
@@ -109,7 +201,7 @@ async def create_analytics(
         
         return CreateAnalyticsResponse(
             success=True,
-            message="Job description parsed and analytics created successfully",
+            message="Job description received and processed successfully.",
             analytics_id=analytics_id,
             parsed_job=job_data
         )
@@ -163,34 +255,28 @@ async def upload_resume_for_analytics(
             'file_type': file.content_type
         }
         
-        # Parse resume using enhanced parser
-        if enhanced_resume_parser:
-            parsed_data = await enhanced_resume_parser.parse_resume(
-                file_content, 
-                file.content_type
-            )
-        else:
-            # Fallback to basic parsing if enhanced parser is not available
-            parsed_data = {
-                "personal_info": {"name": None, "email": None, "phone": None},
-                "skills": {"technical": [], "soft": [], "domain": []},
-                "experience": [],
-                "education": [],
-                "projects": [],
-                "certifications": [],
-                "languages": [],
-                "awards": [],
-                "raw_text": "Resume content extracted",
-                "parsing_method": "basic_fallback",
-                "parsed_at": datetime.utcnow().isoformat(),
-                "statistics": {
-                    "total_experience_years": 0,
-                    "skill_count": 0,
-                    "education_count": 0,
-                    "project_count": 0,
-                    "certification_count": 0
-                }
+        # For now, we'll use a simplified approach since we removed the heavy resume parser
+        # In the future, you can integrate with your LangChain + OpenAI implementation
+        parsed_data = {
+            "personal_info": {"name": None, "email": None, "phone": None},
+            "skills": {"technical": [], "soft": [], "domain": []},
+            "experience": [],
+            "education": [],
+            "projects": [],
+            "certifications": [],
+            "languages": [],
+            "awards": [],
+            "raw_text": "Resume content extracted (AI parsing coming soon with LangChain + OpenAI)",
+            "parsing_method": "basic_fallback",
+            "parsed_at": datetime.utcnow().isoformat(),
+            "statistics": {
+                "total_experience_years": 0,
+                "skill_count": 0,
+                "education_count": 0,
+                "project_count": 0,
+                "certification_count": 0
             }
+        }
         
         # Create parsed resume data
         parsed_resume_data = ParsedResumeData(
@@ -251,7 +337,7 @@ async def upload_resume_for_analytics(
         
         return UploadResumeResponse(
             success=True,
-            message="Resume uploaded and parsed successfully",
+            message="Resume uploaded successfully. AI parsing coming soon with LangChain + OpenAI integration.",
             resume_id=resume_id,
             parsed_data=parsed_resume_data,
             preview={
@@ -442,34 +528,47 @@ async def perform_analysis(
                 detail="Job description or resume content is missing"
             )
         
-        # Perform enhanced analysis using the enhanced resume analyzer
-        if enhanced_resume_analyzer:
-            analysis_results = await enhanced_resume_analyzer.analyze_resume_against_job(
-                job_description_text,
-                resume_raw_text
-            )
+        # For now, we'll use a simplified approach since we removed the heavy resume analyzer
+        # In the future, you can integrate with your LangChain + OpenAI implementation
+        analysis_results = await _perform_basic_analysis(job_data, resume_data)
+        
+        # Store enhanced results in the proper structure
+        # Convert Pydantic model to dict for Firestore storage
+        try:
+            if hasattr(analysis_results, 'dict'):
+                # Pydantic v1
+                results_dict = analysis_results.dict()
+                print(f"Converted AnalysisResults using .dict() method")
+            elif hasattr(analysis_results, 'model_dump'):
+                # Pydantic v2
+                results_dict = analysis_results.model_dump()
+                print(f"Converted AnalysisResults using .model_dump() method")
+            else:
+                # Fallback - try to convert to dict
+                results_dict = dict(analysis_results)
+                print(f"Converted AnalysisResults using dict() fallback")
             
-            # Store enhanced results in the proper structure
-            results_data = {
-                'enhanced_analysis': analysis_results,
-                'basic_results': {
-                    'match_score': analysis_results.get('match_score', 0),
-                    'ats_score': analysis_results.get('ats_score', 0),
-                    'fit_level': analysis_results.get('fit_level', 'Not Fit'),
-                    'missing_skills': analysis_results.get('missing_keywords', []),
-                    'suggestions': analysis_results.get('suggestions', []),
-                    'improvements': analysis_results.get('ats_feedback', []),
-                    'total_skills_matched': len(analysis_results.get('skill_analysis', {}).get('matching_skills', [])),
-                    'total_skills_missing': len(analysis_results.get('skill_analysis', {}).get('missing_skills', [])),
-                    'skill_match_percentage': analysis_results.get('skill_analysis', {}).get('skill_match_percentage', 0)
-                }
+            print(f"Successfully converted AnalysisResults to dict with keys: {list(results_dict.keys())}")
+        except Exception as e:
+            print(f"Error converting AnalysisResults to dict: {e}")
+            # Fallback to empty dict
+            results_dict = {
+                'match_score': 0.0,
+                'ats_score': 0.0,
+                'fit_level': 'Error',
+                'matching_skills': [],
+                'missing_skills': [],
+                'suggestions': ['Analysis conversion failed'],
+                'improvements': ['Please try again'],
+                'total_skills_matched': 0,
+                'total_skills_missing': 0,
+                'skill_match_percentage': 0.0
             }
-        else:
-            # Fallback to basic analysis
-            analysis_results = await _perform_basic_analysis(job_data, resume_data)
-            results_data = {
-                'basic_results': analysis_results
-            }
+        
+        results_data = {
+            'enhanced_analysis': results_dict,
+            'basic_results': results_dict
+        }
         
         # Update analytics with results
         update_success = simplified_firebase_service.update_analytics(
@@ -489,11 +588,38 @@ async def perform_analysis(
                 detail="Failed to save analysis results"
             )
         
+        # Convert Pydantic model to dict for response
+        try:
+            if hasattr(analysis_results, 'dict'):
+                # Pydantic v1
+                results_dict = analysis_results.dict()
+            elif hasattr(analysis_results, 'model_dump'):
+                # Pydantic v2
+                results_dict = analysis_results.model_dump()
+            else:
+                # Fallback - try to convert to dict
+                results_dict = dict(analysis_results)
+        except Exception as e:
+            print(f"Error converting AnalysisResults to dict for response: {e}")
+            # Use the already converted dict from above
+            results_dict = results_dict if 'results_dict' in locals() else {
+                'match_score': 0.0,
+                'ats_score': 0.0,
+                'fit_level': 'Error',
+                'matching_skills': [],
+                'missing_skills': [],
+                'suggestions': ['Analysis conversion failed'],
+                'improvements': ['Please try again'],
+                'total_skills_matched': 0,
+                'total_skills_missing': 0,
+                'skill_match_percentage': 0.0
+            }
+        
         return PerformAnalysisResponse(
             success=True,
             message="Analysis completed successfully",
             analytics_id=request.analytics_id,
-            results=analysis_results # Return the analysis_results object directly
+            results=results_dict
         )
         
     except HTTPException:

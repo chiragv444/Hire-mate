@@ -21,10 +21,6 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy setup.py and run setup
-COPY setup.py .
-RUN python setup.py
-
 # Copy the rest of the application
 COPY . .
 

@@ -7,7 +7,6 @@ from datetime import datetime
 
 from ..core.auth import get_current_user
 from ..core.config import settings
-from app.services.enhanced_resume_parser import enhanced_resume_parser
 from ..services.firebase_simple import simplified_firebase_service
 from ..services.firebase_storage import firebase_storage_service
 from ..models.resume_simple import (
@@ -62,31 +61,28 @@ async def upload_onboarding_resume(
             folder="resumes"
         )
         
-        # Parse resume content using enhanced parser
-        if enhanced_resume_parser:
-            parsed_data = await enhanced_resume_parser.parse_resume(file_content, file.content_type)
-        else:
-            # Fallback to basic parsing if enhanced parser is not available
-            parsed_data = {
-                "personal_info": {"name": None, "email": None, "phone": None},
-                "skills": {"technical": [], "soft": [], "domain": []},
-                "experience": [],
-                "education": [],
-                "projects": [],
-                "certifications": [],
-                "languages": [],
-                "awards": [],
-                "raw_text": "Resume content extracted",
-                "parsing_method": "basic_fallback",
-                "parsed_at": datetime.utcnow().isoformat(),
-                "statistics": {
-                    "total_experience_years": 0,
-                    "skill_count": 0,
-                    "education_count": 0,
-                    "project_count": 0,
-                    "certification_count": 0
-                }
+        # For now, we'll use a simplified approach since we removed the heavy resume parser
+        # In the future, you can integrate with your LangChain + OpenAI implementation
+        parsed_data = {
+            "personal_info": {"name": None, "email": None, "phone": None},
+            "skills": {"technical": [], "soft": [], "domain": []},
+            "experience": [],
+            "education": [],
+            "projects": [],
+            "certifications": [],
+            "languages": [],
+            "awards": [],
+            "raw_text": "Resume content extracted (AI parsing coming soon with LangChain + OpenAI)",
+            "parsing_method": "basic_fallback",
+            "parsed_at": datetime.utcnow().isoformat(),
+            "statistics": {
+                "total_experience_years": 0,
+                "skill_count": 0,
+                "education_count": 0,
+                "project_count": 0,
+                "certification_count": 0
             }
+        }
         
         # Store resume in database
         resume_data = {
@@ -143,7 +139,7 @@ async def upload_onboarding_resume(
         
         return UploadResumeResponse(
             success=True,
-            message="Resume uploaded successfully and set as default",
+            message="Resume uploaded successfully and set as default. AI parsing coming soon with LangChain + OpenAI integration.",
             resume_id=resume_id,
             parsed_data=parsed_resume_data,
             preview=preview_data
