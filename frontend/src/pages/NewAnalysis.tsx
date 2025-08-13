@@ -188,9 +188,9 @@ const NewAnalysis = () => {
         
         // Set step based on analysis status and step_number
         if (analysis.status === 'in_process' && analysis.step_number === 1) {
-          // If analysis is in process and step 1 is complete, go directly to resume selection
-          console.log('Analysis in process, step 1 complete, going to resume selection');
-          setStep('resume-selection');
+          // If analysis is in process and step 1 is complete, stay on job input to show parsed data
+          console.log('Analysis in process, step 1 complete, staying on job input to show parsed data');
+          setStep('job-input');
         } else if (analysis.step_number === 1) {
           console.log('Step 1, showing job input with parsed data');
           setStep('job-input'); // Keep on job input step to show parsed data
@@ -273,7 +273,8 @@ const NewAnalysis = () => {
       // Load the full analysis data from Firestore
       await loadAnalysisData(result.analytics_id!);
       
-      toast({ title: 'Job Description Parsed', description: 'Review the parsed job details below and click Next when ready.' });
+      // Don't automatically move to next step - let user see the parsed data first
+      toast({ title: 'Job Description Parsed', description: 'Review the parsed job details below and click "Analyze Resume Match" when ready.' });
     } catch (error) {
       toast({ 
         title: 'Parsing Failed', 
@@ -403,6 +404,11 @@ const NewAnalysis = () => {
                 <div className="text-xs text-muted-foreground mt-1">
                   {jobDescription.length} characters
                 </div>
+                {parsedJob && (
+                  <div className="text-xs text-amber-600 mt-1">
+                    ⚠️ Job description has been parsed. You cannot re-parse once completed.
+                  </div>
+                )}
               </div>
 
               <div>
@@ -423,8 +429,12 @@ const NewAnalysis = () => {
 
               <Button
                 onClick={handleJobSubmit}
-                disabled={isSubmitting || (!jobDescription.trim() && !linkedinUrl.trim())}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg shadow-sm"
+                disabled={isSubmitting || (!jobDescription.trim() && !linkedinUrl.trim()) || parsedJob !== null}
+                className={`w-full font-medium py-3 rounded-lg shadow-sm transition-all ${
+                  parsedJob 
+                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
                 size="lg"
               >
                 {isSubmitting ? (
@@ -434,8 +444,8 @@ const NewAnalysis = () => {
                   </>
                 ) : parsedJob ? (
                   <>
-                    <ArrowRight className="mr-2 h-4 w-4" />
-                    Continue with Existing Data
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Job Already Parsed
                   </>
                 ) : (
                   <>
@@ -463,6 +473,14 @@ const NewAnalysis = () => {
             <CardContent>
               {parsedJob ? (
                 <div className="space-y-6">
+                  {/* Success Indicator */}
+                  <div className="text-center">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full text-sm font-medium">
+                      <CheckCircle className="h-4 w-4" />
+                      Job Description Successfully Parsed
+                    </div>
+                  </div>
+                  
                   {/* Job Title with Company and Location */}
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-2 mb-3">
@@ -521,7 +539,7 @@ const NewAnalysis = () => {
                     size="lg"
                   >
                     <ArrowRight className="mr-2 h-4 w-4" />
-                    Analyze Resume Match
+                    Continue to Resume Selection
                   </Button>
                 </div>
               ) : analysisData ? (
@@ -761,7 +779,7 @@ const NewAnalysis = () => {
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <Logo size="md" />
           <div className="text-sm text-muted-foreground">
-            Step {step === 'job-input' ? 1 : step === 'resume-selection' ? 2 : 3} of 3
+            Step {step === 'job-input' ? (parsedJob ? '1 (Ready)' : '1') : step === 'resume-selection' ? '2' : '3'} of 3
           </div>
         </div>
       </header>
