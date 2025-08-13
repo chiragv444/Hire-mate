@@ -117,9 +117,20 @@ class ResumeParser:
     async def parse_resume(self, file_path: str, file_type: str) -> Dict[str, Any]:
         """Parse resume file and extract structured data using enhanced parser"""
         try:
-            # Read file content
-            async with aiofiles.open(file_path, 'rb') as f:
-                file_content = await f.read()
+            # Handle both local file paths and Firebase Storage URLs
+            if file_path.startswith('http') or 'firebasestorage.googleapis.com' in file_path:
+                # This is a Firebase Storage URL, we need to download the file first
+                import requests
+                try:
+                    response = requests.get(file_path)
+                    response.raise_for_status()
+                    file_content = response.content
+                except Exception as e:
+                    raise Exception(f"Failed to download file from Firebase Storage: {str(e)}")
+            else:
+                # This is a local file path
+                async with aiofiles.open(file_path, 'rb') as f:
+                    file_content = await f.read()
             
             # Use enhanced resume parser if available
             if enhanced_resume_parser:
@@ -175,22 +186,17 @@ class ResumeParser:
     async def parse_resume_from_storage(self, storage_path: str) -> Dict[str, Any]:
         """Parse resume file from Firebase Storage path"""
         try:
-            # For now, assume the file is already downloaded locally
-            # In a full implementation, you'd download from Firebase Storage first
-            # This is a simplified version that works with local file paths
+            # Determine file type from URL or path
+            if storage_path.startswith('http') or 'firebasestorage.googleapis.com' in storage_path:
+                # Extract file extension from URL
+                file_extension = storage_path.split('?')[0].split('.')[-1].lower()
+            else:
+                file_extension = os.path.splitext(storage_path)[1].lower()
             
-            # Determine file type from path
-            file_extension = os.path.splitext(storage_path)[1].lower()
             file_type = 'pdf' if file_extension == '.pdf' else 'docx' if file_extension in ['.docx', '.doc'] else 'txt'
             
-            # For Firebase Storage, you would typically:
-            # 1. Download the file from storage_path
-            # 2. Save it temporarily
-            # 3. Parse it
-            # 4. Clean up the temporary file
-            
-            # For now, we'll assume the storage_path is a local file path
-            # This will need to be updated when Firebase Storage integration is complete
+            # Parse the resume using the main parse_resume method
+            # It will handle both local files and Firebase Storage URLs
             return await self.parse_resume(storage_path, file_type)
             
         except Exception as e:

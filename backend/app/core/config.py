@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     firebase_client_x509_cert_url: Optional[str] = None
     
     # File Upload Settings
-    upload_dir: str = "assets/resumes"
+    upload_dir: str = "resumes"  # Firebase Storage folder
     max_file_size: int = 10 * 1024 * 1024  # 10MB
     allowed_extensions: list = [".pdf", ".docx", ".doc"]
     

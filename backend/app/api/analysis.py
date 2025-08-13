@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from typing import Optional
 import os
+import uuid
 from datetime import datetime
 
 from ..core.auth import get_current_user
@@ -9,6 +10,7 @@ from ..core.config import settings
 from ..services.resume_parser import resume_parser
 from ..services.job_scraper import job_scraper
 from ..core.firebase import firebase_service
+from ..services.firebase_storage import firebase_storage_service
 from ..models.analysis import (
     AnalysisStartRequest, 
     AnalysisStartResponse, 
@@ -45,12 +47,23 @@ async def start_new_analysis(
                 detail=f"File too large. Maximum size: {settings.max_file_size // (1024*1024)}MB"
             )
         
-        # Save file
-        file_metadata = await resume_parser.save_uploaded_file(
-            file_content, 
-            file.filename, 
-            settings.upload_dir
+        # Save file to Firebase Storage
+        file_url = firebase_storage_service.upload_file(
+            file_content=file_content,
+            filename=file.filename,
+            content_type=file.content_type,
+            folder="resumes"
         )
+        
+        # Create file metadata
+        file_metadata = {
+            'filename': f"{uuid.uuid4()}{os.path.splitext(file.filename)[1]}",
+            'original_name': file.filename,
+            'file_size': len(file_content),
+            'file_type': file.content_type,
+            'file_path': file_url,
+            'upload_date': datetime.now()
+        }
         
         # Parse resume
         parsed_data = await resume_parser.parse_resume(

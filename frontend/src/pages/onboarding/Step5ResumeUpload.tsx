@@ -88,7 +88,7 @@ const Step5ResumeUpload: React.FC<Step5Props> = ({ data, updateData, onNext, onS
   const handleRemoveFile = () => {
     setSelectedFile(null);
     setUploadedResume(null);
-    updateData({ resumeFile: null, resumeData: null });
+    updateData({ resumeFile: undefined, resumeData: undefined });
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
