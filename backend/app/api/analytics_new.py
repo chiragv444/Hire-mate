@@ -12,6 +12,7 @@ from ..services.enhanced_resume_analyzer import enhanced_resume_analyzer
 from ..services.job_scraper import job_scraper
 from ..services.enhanced_job_parser import enhanced_job_parser
 from ..services.firebase_simple import simplified_firebase_service
+from ..services.firebase_storage import firebase_storage_service
 from ..models.analytics import (
     CreateAnalyticsRequest,
     CreateAnalyticsResponse,
@@ -145,11 +146,12 @@ async def upload_resume_for_analytics(
                 detail=f"File too large. Maximum size: {settings.max_file_size // (1024*1024)}MB"
             )
         
-        # Save file to Firebase storage
-        file_url = simplified_firebase_service.upload_file(
+        # Save file to Firebase Storage
+        file_url = firebase_storage_service.upload_file(
             file_content=file_content,
             filename=file.filename,
-            content_type=file.content_type
+            content_type=file.content_type,
+            folder="resumes"
         )
         
         # Create file metadata

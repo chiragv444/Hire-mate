@@ -1,12 +1,12 @@
 import firebase_admin
-from firebase_admin import credentials, firestore, auth
+from firebase_admin import credentials, firestore, auth, storage
 from firebase_admin.exceptions import FirebaseError
 from typing import Optional, Dict, Any, List
 import json
 import os
 import uuid
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from ..core.config import settings
 
@@ -18,7 +18,7 @@ class SimplifiedFirebaseService:
         self._initialize_firebase()
     
     def _initialize_firebase(self):
-        """Initialize Firebase Admin SDK"""
+        """Initialize Firebase Admin SDK with Storage"""
         try:
             # Check if Firebase is already initialized
             if not firebase_admin._apps:
@@ -27,14 +27,20 @@ class SimplifiedFirebaseService:
                 
                 if service_account_info:
                     cred = credentials.Certificate(service_account_info)
-                    firebase_admin.initialize_app(cred)
+                    firebase_admin.initialize_app(cred, {
+                        'storageBucket': f"{settings.firebase_project_id}.firebasestorage.app"
+                    })
                 else:
                     # Use default credentials (for development)
-                    firebase_admin.initialize_app()
+                    firebase_admin.initialize_app({
+                        'storageBucket': f"{settings.firebase_project_id}.firebasestorage.app"
+                    })
                 
+                self.bucket = storage.bucket(f"{settings.firebase_project_id}.firebasestorage.app")
                 self.db = firestore.client()
                 print("Firebase initialized successfully")
             else:
+                self.bucket = storage.bucket(f"{settings.firebase_project_id}.firebasestorage.app")
                 self.db = firestore.client()
                 print("Firebase already initialized")
                 
@@ -53,27 +59,59 @@ class SimplifiedFirebaseService:
         return None
     
     def upload_file(self, file_content: bytes, filename: str, content_type: str) -> str:
-        """Upload file to local storage and return the file path"""
+        """Upload file to Firebase Storage and return the download URL"""
         try:
-            # Create uploads directory if it doesn't exist
-            uploads_dir = Path("assets/resumes")
-            uploads_dir.mkdir(parents=True, exist_ok=True)
-            
             # Generate unique filename
             file_extension = Path(filename).suffix
             unique_filename = f"{uuid.uuid4()}{file_extension}"
-            file_path = uploads_dir / unique_filename
             
-            # Save file to local storage
-            with open(file_path, 'wb') as f:
-                f.write(file_content)
+            # Create blob path in the resumes folder
+            blob_path = f"resumes/{unique_filename}"
+            blob = self.bucket.blob(blob_path)
             
-            # Return relative path for storage in database
-            return str(file_path)
+            # Set content type for proper file handling
+            blob.content_type = content_type
+            
+            # Upload file content
+            blob.upload_from_string(file_content, content_type=content_type)
+            
+            # Get the download URL
+            download_url = blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(days=7),  # 7 days expiration (Firebase max)
+                method="GET"
+            )
+            
+            print(f"File uploaded successfully to Firebase Storage: {blob_path}")
+            return download_url
             
         except Exception as e:
-            print(f"Error uploading file: {e}")
+            print(f"Error uploading file to Firebase Storage: {e}")
             raise
+    
+    def delete_file(self, file_url: str) -> bool:
+        """Delete file from Firebase Storage"""
+        try:
+            # Extract blob path from URL
+            if "firebasestorage.googleapis.com" in file_url:
+                # Extract the path from the signed URL
+                blob_path = file_url.split("/o/")[-1].split("?")[0] if "/o/" in file_url else None
+                
+                if blob_path:
+                    blob = self.bucket.blob(blob_path)
+                    blob.delete()
+                    print(f"File deleted successfully from Firebase Storage: {blob_path}")
+                    return True
+                else:
+                    print(f"Could not extract blob path from URL: {file_url}")
+                    return False
+            else:
+                print(f"Invalid Firebase Storage URL: {file_url}")
+                return False
+                
+        except Exception as e:
+            print(f"Error deleting file from Firebase Storage: {e}")
+            return False
     
     def verify_token(self, id_token: str) -> Optional[Dict[str, Any]]:
         """Verify Firebase ID token and return user info"""

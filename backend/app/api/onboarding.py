@@ -9,6 +9,7 @@ from ..core.auth import get_current_user
 from ..core.config import settings
 from app.services.enhanced_resume_parser import enhanced_resume_parser
 from ..services.firebase_simple import simplified_firebase_service
+from ..services.firebase_storage import firebase_storage_service
 from ..models.resume_simple import (
     UploadResumeRequest,
     UploadResumeResponse,
@@ -53,11 +54,12 @@ async def upload_onboarding_resume(
         file_extension = os.path.splitext(file.filename)[1]
         unique_filename = f"onboarding_{user_id}_{timestamp}{file_extension}"
         
-        # Save file to storage
-        file_url = simplified_firebase_service.upload_file(
+        # Save file to Firebase Storage
+        file_url = firebase_storage_service.upload_file(
             file_content=file_content,
             filename=file.filename,
-            content_type=file.content_type
+            content_type=file.content_type,
+            folder="resumes"
         )
         
         # Parse resume content using enhanced parser
