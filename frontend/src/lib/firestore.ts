@@ -266,6 +266,28 @@ export async function updateUserProfile(
 }
 
 /**
+ * Update user profile information with specific fields.
+ */
+export async function updateUserProfileFields(
+  uid: string,
+  profileData: {
+    displayName?: string;
+    photoURL?: string;
+  }
+): Promise<void> {
+  try {
+    const userRef = doc(db, USERS_COLLECTION, uid);
+    await updateDoc(userRef, {
+      ...profileData,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error updating user profile fields:', error);
+    throw error;
+  }
+}
+
+/**
  * Get user's onboarding progress.
  */
 export async function getOnboardingProgress(uid: string): Promise<Record<string, any> | null> {
