@@ -44,11 +44,8 @@ def main():
         print("❌ Failed to download NLTK data")
         sys.exit(1)
     
-    # Create upload directory
-    upload_dir = "assets/resumes"
-    if not os.path.exists(upload_dir):
-        os.makedirs(upload_dir)
-        print(f"✅ Created upload directory: {upload_dir}")
+    # Note: Files will be uploaded to Firebase Storage instead of local directory
+    print("✅ Firebase Storage will be used for file uploads")
     
     print("\n" + "=" * 50)
     print("🎉 Setup completed successfully!")
@@ -59,7 +56,7 @@ def main():
     print("\n🔧 Configuration:")
     print("- Backend will run on: http://localhost:8000")
     print("- API prefix: /api/v1")
-    print("- Upload directory: assets/resumes")
+    print("- File storage: Firebase Storage (gs://hire-mate.firebasestorage.app/resumes)")
 
 if __name__ == "__main__":
     main() 

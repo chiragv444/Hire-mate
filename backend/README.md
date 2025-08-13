@@ -1,200 +1,242 @@
 # HireMate Backend API
 
-A FastAPI backend for the HireMate application that provides resume parsing, job analysis, and AI-powered matching capabilities.
+A FastAPI-based backend service for the HireMate application, providing resume parsing, job analysis, and AI-powered matching capabilities.
 
-## Features
+## 🚀 Features
 
-- **Resume Upload & Parsing**: Upload PDF/DOCX resumes and extract structured data
-- **Job Description Analysis**: Parse job descriptions and extract key information
-- **LinkedIn Job Scraping**: Automatically scrape job details from LinkedIn URLs
-- **AI-Powered Matching**: Match resumes against job descriptions with scoring
-- **Firebase Integration**: Secure authentication and data storage
-- **NLP Processing**: Advanced text analysis using spaCy and NLTK
+- **Resume Parsing**: Advanced resume parsing with AI-powered text extraction
+- **Job Analysis**: LinkedIn job scraping and job description analysis
+- **AI Matching**: Intelligent resume-to-job matching using enhanced algorithms
+- **Firebase Integration**: Firestore database and Firebase Storage for file management
+- **Authentication**: Firebase Auth integration with JWT token verification
+- **File Management**: Resume uploads stored in Firebase Storage (gs://hire-mate.firebasestorage.app/resumes)
 
-## Tech Stack
+## 🏗️ Architecture
 
-- **FastAPI**: Modern, fast web framework
-- **Firebase Admin SDK**: Authentication and Firestore database
-- **spaCy**: Natural language processing
-- **PyPDF2 & python-docx**: Document parsing
-- **BeautifulSoup**: Web scraping
-- **Pydantic**: Data validation
+- **FastAPI**: Modern, fast web framework for building APIs
+- **Firebase Admin SDK**: Authentication, Firestore database, and Storage
+- **AI/ML**: Enhanced resume parsing and analysis using LangChain and OpenAI
+- **NLP**: Text processing with spaCy, NLTK, and custom algorithms
+- **Docker**: Containerized deployment with multi-stage builds
 
-## Installation
+## 📁 Project Structure
 
-1. **Install Python dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Download spaCy model**:
-   ```bash
-   python -m spacy download en_core_web_sm
-   ```
-
-3. **Set up Firebase**:
-   - Create a Firebase project
-   - Download service account key JSON file
-   - Place it in the backend directory as `service-account-key.json`
-   - **IMPORTANT**: Add `service-account-key.json` to `.gitignore` to prevent committing sensitive credentials
-
-4. **Environment variables** (optional):
-   Create a `.env` file with:
-   ```env
-   FIREBASE_PROJECT_ID=your-project-id
-   FIREBASE_PRIVATE_KEY_ID=your-private-key-id
-   FIREBASE_PRIVATE_KEY=your-private-key
-   FIREBASE_CLIENT_EMAIL=your-client-email
-   FIREBASE_CLIENT_ID=your-client-id
-   ```
-
-## Running the Server
-
-### Development
-```bash
-cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Production
-```bash
-cd backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-## API Endpoints
-
-### Resume Management
-
-- `POST /api/v1/resume/upload` - Upload and parse resume
-- `POST /api/v1/resume/upload-onboarding` - Upload resume during onboarding
-- `GET /api/v1/resume/preview/{resume_id}` - Get resume preview
-- `GET /api/v1/resume/list` - List user resumes
-- `DELETE /api/v1/resume/{resume_id}` - Delete resume
-
-### Job Analysis
-
-- `POST /api/v1/job/analyze` - Analyze job description
-- `POST /api/v1/job/match` - Match resume against job
-- `GET /api/v1/job/list` - List job analyses
-- `DELETE /api/v1/job/{job_id}` - Delete job analysis
-
-## Authentication
-
-All endpoints require Firebase authentication. Include the Firebase ID token in the Authorization header:
-
-```
-Authorization: Bearer <firebase-id-token>
-```
-
-## File Upload
-
-Supported file types:
-- PDF (.pdf)
-- DOCX (.docx)
-- DOC (.doc)
-
-Maximum file size: 10MB
-
-## Data Models
-
-### Resume Upload
-```json
-{
-  "file": "resume.pdf",
-  "is_default": false
-}
-```
-
-### Job Analysis
-```json
-{
-  "job_description": "We are looking for a Python developer...",
-  "linkedin_url": "https://linkedin.com/jobs/view/123"
-}
-```
-
-## Response Format
-
-All API responses follow this format:
-```json
-{
-  "success": true,
-  "message": "Operation completed successfully",
-  "data": {...},
-  "error": null
-}
-```
-
-## Error Handling
-
-The API returns appropriate HTTP status codes:
-- `200`: Success
-- `400`: Bad request
-- `401`: Unauthorized
-- `404`: Not found
-- `500`: Internal server error
-
-## Development
-
-### Project Structure
 ```
 backend/
 ├── app/
-│   ├── api/           # API routes
-│   ├── core/          # Core functionality
-│   ├── models/        # Pydantic models
-│   ├── services/      # Business logic
-│   └── utils/         # Utility functions
-├── assets/
-│   └── resumes/       # Uploaded resume files
-├── requirements.txt
-└── README.md
+│   ├── api/                 # API endpoints
+│   │   ├── analysis.py      # Resume analysis endpoints
+│   │   ├── analytics_new.py # New analytics flow endpoints
+│   │   ├── onboarding.py    # User onboarding endpoints
+│   │   └── resume.py        # Resume management endpoints
+│   ├── core/                # Core configuration and services
+│   │   ├── auth.py          # Authentication middleware
+│   │   ├── config.py        # Configuration settings
+│   │   └── firebase.py      # Firebase service
+│   ├── models/              # Pydantic data models
+│   ├── services/            # Business logic services
+│   │   ├── firebase_storage.py # Firebase Storage service
+│   │   ├── firebase_simple.py  # Simplified Firebase service
+│   │   ├── enhanced_resume_parser.py # AI-powered resume parsing
+│   │   └── resume_parser.py # Basic resume parsing
+│   └── utils/               # Utility functions
+├── assets/                  # Local assets (legacy - now using Firebase Storage)
+├── uploads/                 # Local uploads (legacy - now using Firebase Storage)
+├── Dockerfile               # Docker configuration
+├── requirements.txt          # Python dependencies
+└── run.py                   # Application entry point
 ```
 
-### Adding New Endpoints
+## 🔧 Setup & Installation
 
-1. Create route in appropriate API module
-2. Add Pydantic models for request/response
-3. Implement business logic in services
-4. Update this README
+### Prerequisites
 
-## Deployment
+- Python 3.11+
+- Firebase project with Firestore and Storage enabled
+- Firebase service account key
 
-### Docker (Recommended)
-```dockerfile
-FROM python:3.11-slim
+### 1. Clone and Install Dependencies
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+```bash
+cd backend
+pip install -r requirements.txt
+```
 
-COPY . .
-RUN python -m spacy download en_core_web_sm
+### 2. Firebase Configuration
 
-EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+#### Option A: Service Account Key File
+1. Download your Firebase service account key from Firebase Console
+2. Save it as `service-account-key.json` in the backend directory
+3. Ensure the key has permissions for Firestore and Storage
+
+#### Option B: Environment Variables
+Set the following environment variables:
+```bash
+export FIREBASE_PROJECT_ID="hire-mate"
+export FIREBASE_PRIVATE_KEY_ID="your_private_key_id"
+export FIREBASE_PRIVATE_KEY="your_private_key"
+export FIREBASE_CLIENT_EMAIL="your_client_email"
+export FIREBASE_CLIENT_ID="your_client_id"
+export FIREBASE_CLIENT_X509_CERT_URL="your_cert_url"
+```
+
+### 3. Run Setup Script
+
+```bash
+python setup.py
+```
+
+This will:
+- Install Python dependencies
+- Download required NLP models (spaCy, NLTK)
+- Configure the application
+
+### 4. Start the Application
+
+```bash
+python run.py
+```
+
+The API will be available at `http://localhost:8000`
+
+## 🗄️ Firebase Storage Integration
+
+### File Storage
+- **Resumes**: All resume files are now stored in Firebase Storage
+- **Location**: `gs://hire-mate.firebasestorage.app/resumes/`
+- **Benefits**: 
+  - Scalable cloud storage
+  - Automatic CDN distribution
+  - Secure access control
+  - No local disk space usage
+
+### File Management
+- Files are uploaded with unique UUIDs
+- Signed URLs are generated for secure access
+- Automatic cleanup when resumes are deleted
+- Support for PDF, DOCX, and DOC files
+
+## 📊 API Endpoints
+
+### Authentication
+- `POST /api/v1/auth/verify` - Verify Firebase ID token
+
+### Resume Management
+- `POST /api/v1/resume/upload` - Upload and parse resume
+- `POST /api/v1/resume/upload-onboarding` - Upload resume during onboarding
+- `GET /api/v1/resume/preview/{resume_id}` - Get resume preview
+- `GET /api/v1/resume/list` - List user's resumes
+- `DELETE /api/v1/resume/{resume_id}` - Delete resume
+
+### Analytics
+- `POST /api/v1/analytics/create` - Create new analytics session
+- `POST /api/v1/analytics/upload-resume` - Upload resume for analytics
+- `POST /api/v1/analytics/perform-analysis` - Perform resume-job analysis
+- `GET /api/v1/analytics/history` - Get analytics history
+
+### Onboarding
+- `POST /api/v1/onboarding/upload-resume` - Upload resume during onboarding
+- `GET /api/v1/onboarding/default-resume` - Get user's default resume
+
+## 🧪 Testing
+
+### Test Firebase Storage Integration
+
+```bash
+python test_firebase_storage.py
+```
+
+This will test:
+- Firebase initialization
+- Storage bucket access
+- File upload/download
+- File deletion
+
+## 🐳 Docker Deployment
+
+### Build and Run
+
+```bash
+# Build the image
+docker build -t hiremate-backend .
+
+# Run the container
+docker run -p 8000:8000 hiremate-backend
 ```
 
 ### Environment Variables
-- `FIREBASE_PROJECT_ID`: Firebase project ID
-- `FIREBASE_PRIVATE_KEY`: Firebase private key
-- `FIREBASE_CLIENT_EMAIL`: Firebase client email
-- `UPLOAD_DIR`: Resume upload directory
-- `MAX_FILE_SIZE`: Maximum file size in bytes
+Set Firebase configuration as environment variables when running in Docker:
 
-## Monitoring
+```bash
+docker run -p 8000:8000 \
+  -e FIREBASE_PROJECT_ID="hire-mate" \
+  -e FIREBASE_PRIVATE_KEY_ID="your_key_id" \
+  -e FIREBASE_PRIVATE_KEY="your_private_key" \
+  -e FIREBASE_CLIENT_EMAIL="your_client_email" \
+  hiremate-backend
+```
 
-- Health check: `GET /health`
-- API documentation: `GET /docs` (Swagger UI)
-- ReDoc documentation: `GET /redoc`
+## 🔒 Security
 
-## Security
+- **Authentication**: Firebase Auth with JWT token verification
+- **File Access**: Signed URLs with expiration for secure file access
+- **CORS**: Configured for frontend domains
+- **File Validation**: File type and size validation
+- **User Isolation**: Users can only access their own data
 
-- All endpoints require authentication
-- File upload validation
-- CORS configured for frontend domains
-- Input validation with Pydantic
-- Error handling without exposing internals 
+## 📈 Performance
 
-Python Version: 3.11.13
+- **File Processing**: Asynchronous file upload and parsing
+- **Storage**: Cloud-based storage with CDN distribution
+- **Database**: Firestore for scalable document storage
+- **Caching**: Intelligent caching for parsed resume data
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+1. **Firebase Initialization Error**
+   - Check service account key file or environment variables
+   - Verify Firebase project ID is correct
+
+2. **File Upload Failures**
+   - Check Firebase Storage permissions
+   - Verify bucket name configuration
+
+3. **Authentication Errors**
+   - Ensure Firebase Auth is enabled
+   - Check token expiration and validity
+
+### Logs
+Check application logs for detailed error information:
+```bash
+docker logs <container_id>
+```
+
+## 🔄 Migration from Local Storage
+
+If you're migrating from the previous local storage system:
+
+1. **Data Migration**: Existing local files remain accessible
+2. **New Uploads**: All new files go to Firebase Storage
+3. **Database**: File paths are updated to Firebase Storage URLs
+4. **Cleanup**: Local assets directory can be removed after migration
+
+## 📝 License
+
+This project is part of the HireMate application suite.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📞 Support
+
+For issues and questions:
+- Check the troubleshooting section
+- Review Firebase documentation
+- Open an issue in the repository

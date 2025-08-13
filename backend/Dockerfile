@@ -28,8 +28,7 @@ RUN python setup.py
 # Copy the rest of the application
 COPY . .
 
-# Create assets directory for file uploads
-RUN mkdir -p assets/resumes
+# Note: Files will be uploaded to Firebase Storage instead of local directory
 
 # Expose port 8000
 EXPOSE 8000
