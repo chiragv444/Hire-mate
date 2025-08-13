@@ -25,6 +25,13 @@ class ParsedResumeData(BaseModel):
     summary: Optional[str] = None
     languages: List[str] = []
     certifications: List[str] = []
+    professional_summary: Optional[str] = Field(description="AI-generated comprehensive professional summary")
+    career_highlights: List[str] = Field(description="Key career achievements and highlights", default_factory=list)
+    industry_expertise: List[str] = Field(description="Areas of industry expertise", default_factory=list)
+    leadership_experience: List[str] = Field(description="Leadership and management experience", default_factory=list)
+    projects: List[Dict[str, Any]] = []
+    awards: List[str] = []
+    personal_info: Dict[str, Any] = {}
 
 class ResumeAnalysisResponse(BaseModel):
     """Response model for resume analysis"""
