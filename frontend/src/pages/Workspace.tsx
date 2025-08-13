@@ -74,6 +74,7 @@ const Workspace = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBy, setFilterBy] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date");
+  const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
     if (user?.uid) {
@@ -90,6 +91,15 @@ const Workspace = () => {
       setIsLoading(false);
     }
   }, [user]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleDeleteAnalysis = async (analysisId: string) => {
     if (!user?.uid) return;
@@ -116,24 +126,24 @@ const Workspace = () => {
   const getFitLevelBadge = (fitLevel: string) => {
     switch (fitLevel) {
       case 'Great Fit':
-        return <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100/80">Great Fit</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100/80 text-xs px-2 py-1">Great Fit</Badge>;
       case 'Possible Fit':
-        return <Badge className="bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100/80">Possible Fit</Badge>;
+        return <Badge className="bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100/80 text-xs px-2 py-1">Possible Fit</Badge>;
       case 'Marginal Fit':
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-100/80">Marginal Fit</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-100/80 text-xs px-2 py-1">Marginal Fit</Badge>;
       default:
-        return <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-100/80">Not Fit</Badge>;
+        return <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-100/80 text-xs px-2 py-1">Not Fit</Badge>;
     }
   };
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200 text-xs px-2 py-1';
       case 'in_process':
-      case 'processing': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'processing': return 'bg-blue-100 text-blue-800 border-blue-200 text-xs px-2 py-1';
       case 'error':
-      case 'failed': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'failed': return 'bg-red-100 text-red-800 border-red-200 text-xs px-2 py-1';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200 text-xs px-2 py-1';
     }
   };
 
@@ -219,14 +229,18 @@ const Workspace = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+      {/* Glass Header */}
+      <header className={`sticky top-0 z-40 transition-all duration-300 ${
+        isScrolled 
+          ? 'glass-header-scrolled' 
+          : 'glass-header'
+      }`}>
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <h1 className="text-2xl font-bold text-gray-900">Workspace</h1>
             <div className="flex items-center space-x-4">
               <Link to="/new-analysis">
-                <Button className="bg-purple-600 hover:bg-purple-700 shadow-sm">
+                <Button className="bg-purple-600 hover:bg-purple-700 shadow-sm text-white">
                   <Plus className="h-4 w-4 mr-2" />
                   New Analysis
                 </Button>
@@ -242,9 +256,8 @@ const Workspace = () => {
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuContent className="w-56 glass-dropdown" align="end" forceMount>
                   <DropdownMenuItem asChild><Link to="/profile">Profile</Link></DropdownMenuItem>
-                  <DropdownMenuItem asChild><Link to="/settings">Settings</Link></DropdownMenuItem>
                   <DropdownMenuItem><button className="w-full text-left" onClick={logout}>Logout</button></DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -266,7 +279,7 @@ const Workspace = () => {
           <p className="text-gray-600">Track your resume analyses and improve your job match scores</p>
         </motion.div>
 
-        {/* Enhanced Stats Cards */}
+        {/* Enhanced Stats Cards - Fixed to match Figma */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -304,7 +317,7 @@ const Workspace = () => {
                 <CardTitle className="text-sm font-medium text-gray-600">Great Fits</CardTitle>
                 <Star className="h-4 w-4 text-gray-400" />
               </div>
-              <div className="text-2xl font-bold text-gray-900 mb-1">{stats.greatFits}</div>
+              <div className="text-2xl font-bold text-green-600 mb-1">{stats.greatFits}</div>
               <div className="text-xs text-gray-500">{stats.total > 0 ? Math.round((stats.greatFits / stats.total) * 100) : 0}% of total</div>
             </CardContent>
           </Card>
@@ -322,190 +335,189 @@ const Workspace = () => {
           </Card>
         </motion.div>
 
-        {/* Search and Filter Bar */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input 
-                placeholder="Search analyses..." 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-                className="pl-10 w-64 border-gray-200 focus:border-purple-500 focus:ring-purple-500" 
+        {/* Search and Filter Section - Fixed to match Figma */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 0.2 }} 
+          className="mb-6"
+        >
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search analyses by job title or resume name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-10 bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500"
               />
             </div>
-            <Select value={filterBy} onValueChange={setFilterBy}>
-              <SelectTrigger className="w-[180px] border-gray-200">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Analyses</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="great_fit">Great Fits</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={filterBy} onValueChange={setFilterBy}>
+                <SelectTrigger className="w-32 h-10 bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="glass-dropdown">
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="great_fit">Great Fits</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-32 h-10 bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="glass-dropdown">
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="score">Score</SelectItem>
+                  <SelectItem value="ats">ATS Score</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px] border-gray-200">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Latest First</SelectItem>
-              <SelectItem value="score">Match Score</SelectItem>
-              <SelectItem value="ats">ATS Score</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        </motion.div>
 
-        {/* Analysis Results */}
+        {/* Analyses List - Fixed to match Figma */}
         <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          transition={{ delay: 0.2 }} 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 0.3 }} 
           className="space-y-4"
         >
-          {filteredAndSortedAnalyses.length > 0 ? (
-            filteredAndSortedAnalyses.map((analysis, index) => {
-              const jobTitle = analysis.job_description?.title || analysis.job_data?.jobTitle || 'Untitled Job';
-              const resumeName = analysis.resume?.filename || analysis.resume?.original_name || analysis.name || 'Unknown Resume';
-              const matchScore = analysis.results?.enhanced_analysis?.match_score || analysis.results?.basic_results?.match_score || 0;
-              const atsScore = analysis.results?.enhanced_analysis?.ats_score || analysis.results?.basic_results?.ats_score || 0;
-              const fitLevel = analysis.results?.enhanced_analysis?.fit_level || analysis.results?.basic_results?.fit_level || 'Not Fit';
-              const createdDate = analysis.created_at?.toDate ? analysis.created_at.toDate() : new Date(analysis.created_at);
-              
-              return (
-                <motion.div 
-                  key={analysis.id} 
-                  initial={{ opacity: 0, y: 20 }} 
-                  animate={{ opacity: 1, y: 0 }} 
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <Card className="bg-white shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between gap-6">
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center space-x-3">
-                              <h3 className="font-semibold text-lg text-gray-900 cursor-pointer hover:text-purple-600 transition-colors" 
-                                  onClick={() => navigate(`/match-results/${analysis.id}`)}>
-                                {jobTitle}
-                              </h3>
-                              {getFitLevelBadge(fitLevel)}
-                            </div>
-                            <Badge className={getStatusBadgeClass(analysis.status)}>
-                              {analysis.status === 'completed' ? 'Completed' : 
-                               analysis.status === 'in_process' ? 'In Progress' : 
-                               analysis.status === 'processing' ? 'Processing' : 
-                               analysis.status || 'Unknown'}
-                            </Badge>
+          {filteredAndSortedAnalyses.length === 0 ? (
+            <Card className="text-center py-12">
+              <CardContent>
+                <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No analyses found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchTerm || filterBy !== "all" 
+                    ? "Try adjusting your search or filters" 
+                    : "Start your first analysis to see results here"
+                  }
+                </p>
+                {!searchTerm && filterBy === "all" && (
+                  <Link to="/new-analysis">
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Start Analysis
+                    </Button>
+                  </Link>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            filteredAndSortedAnalyses.map((analysis) => (
+              <Card key={analysis.id} className="bg-white shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-3">
+                        {analysis.status === 'completed' ? (
+                          <Link 
+                            to={`/match-results/${analysis.id}`}
+                            className="text-lg font-semibold text-gray-900 truncate hover:text-purple-600 transition-colors cursor-pointer"
+                          >
+                            {analysis.job_description?.title || analysis.job_data?.jobTitle || 'Untitled Analysis'}
+                          </Link>
+                        ) : analysis.status === 'in_process' || analysis.status === 'processing' ? (
+                          <Link 
+                            to={`/new-analysis?analysis-id=${analysis.id}`}
+                            className="text-lg font-semibold text-gray-900 truncate hover:text-purple-600 transition-colors cursor-pointer"
+                          >
+                            {analysis.job_description?.title || analysis.job_data?.jobTitle || 'Untitled Analysis'}
+                          </Link>
+                        ) : (
+                          <h3 className="text-lg font-semibold text-gray-900 truncate">
+                            {analysis.job_description?.title || analysis.job_data?.jobTitle || 'Untitled Analysis'}
+                          </h3>
+                        )}
+                        {getFitLevelBadge(
+                          analysis.results?.enhanced_analysis?.fit_level || 
+                          analysis.results?.basic_results?.fit_level || 'Not Fit'
+                        )}
+                      </div>
+                      
+                      <div className="text-sm text-gray-500 mb-4">
+                        {analysis.resume?.filename || analysis.resume?.original_name || analysis.name || 'Resume'} • {
+                          analysis.created_at?.toDate ? 
+                          analysis.created_at.toDate().toLocaleDateString() : 
+                          new Date(analysis.created_at).toLocaleDateString()
+                        }
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <div className="text-sm text-gray-600 mb-2">Match Score</div>
+                          <div className={`text-xl font-bold text-purple-600`}>
+                            {(analysis.results?.enhanced_analysis?.match_score || 
+                             analysis.results?.basic_results?.match_score || 0).toFixed(2)}%
                           </div>
-                          
-                          <p className="text-gray-600 text-sm mb-4">
-                            {resumeName} • {createdDate.toLocaleDateString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric', 
-                              year: 'numeric' 
-                            })}
-                          </p>
-                          
-                          <div className="flex items-center gap-8 text-sm">
-                            {/* Match Score */}
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-500">Match Score</span>
-                                <span className={`font-semibold ${getScoreColor(matchScore)}`}>
-                                  {matchScore}%
-                                </span>
-                              </div>
-                              <Progress 
-                                value={matchScore} 
-                                className="w-24 h-2" 
-                                style={{
-                                  '--progress-background': matchScore >= 85 ? '#10b981' : 
-                                                          matchScore >= 70 ? '#f59e0b' : '#ef4444'
-                                } as React.CSSProperties}
-                              />
-                            </div>
-                            
-                            {/* ATS Score */}
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-500">ATS Score</span>
-                                <span className={`font-semibold ${getScoreColor(atsScore)}`}>
-                                  {atsScore}%
-                                </span>
-                              </div>
-                              <Progress 
-                                value={atsScore} 
-                                className="w-24 h-2"
-                                style={{
-                                  '--progress-background': atsScore >= 85 ? '#10b981' : 
-                                                          atsScore >= 70 ? '#f59e0b' : '#ef4444'
-                                } as React.CSSProperties}
-                              />
-                            </div>
-                          </div>
+                          <Progress 
+                            value={analysis.results?.enhanced_analysis?.match_score || 
+                                   analysis.results?.basic_results?.match_score || 0} 
+                            className="mt-2 h-1.5 bg-gray-200"
+                            style={{
+                              '--progress-foreground': '#8B5CF6'
+                            } as React.CSSProperties}
+                          />
                         </div>
                         
-                        <div className="flex items-center space-x-2">
-                          <Link to={`/match-results/${analysis.id}`}>
-                            <Button variant="outline" size="sm" className="border-gray-300 hover:border-purple-500 hover:text-purple-600">
-                              View Details
-                            </Button>
-                          </Link>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-100">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem asChild>
-                                <Link to={`/cover-letter/${analysis.id}`} className="flex items-center">
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  Generate Cover Letter
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => alert('Feature coming soon!')}>
-                                <Target className="h-4 w-4 mr-2" />
-                                Duplicate Analysis
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-red-600 focus:text-red-600" 
-                                onClick={() => handleDeleteAnalysis(analysis.id)}
-                              >
-                                <AlertCircle className="h-4 w-4 mr-2" />
-                                Delete Analysis
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                        <div>
+                          <div className="text-sm text-gray-600 mb-2">ATS Score</div>
+                          <div className={`text-xl font-bold text-green-600`}>
+                            {(analysis.results?.enhanced_analysis?.ats_score || 
+                             analysis.results?.basic_results?.ats_score || 0).toFixed(2)}%
+                          </div>
+                          <Progress 
+                            value={analysis.results?.enhanced_analysis?.ats_score || 
+                                   analysis.results?.basic_results?.ats_score || 0} 
+                            className="mt-2 h-1.5 bg-gray-200"
+                            style={{
+                              '--progress-foreground': '#8B5CF6'
+                            } as React.CSSProperties}
+                          />
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })
-          ) : (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }} 
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-16 border-2 border-dashed border-gray-300 rounded-lg bg-white"
-            >
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="h-8 w-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No analyses found</h3>
-              <p className="text-gray-500 mb-6">Get started by creating a new analysis.</p>
-              <Link to="/new-analysis">
-                <Button className="bg-purple-600 hover:bg-purple-700 shadow-sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Analysis
-                </Button>
-              </Link>
-            </motion.div>
+                    </div>
+
+                    <div className="flex items-center gap-3 ml-6">
+                      <Badge className={getStatusBadgeClass(analysis.status)}>
+                        {analysis.status === 'completed' ? 'Completed' : 
+                         analysis.status === 'in_process' || analysis.status === 'processing' ? 'In Progress' : 
+                         analysis.status}
+                      </Badge>
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="glass-dropdown" align="end">
+                          <DropdownMenuItem>
+                            <FileText className="h-4 w-4 mr-2" />
+                            Generate Cover Letter
+                          </DropdownMenuItem>
+                          {/* <DropdownMenuItem>
+                            <Target className="h-4 w-4 mr-2" />
+                            Duplicate Analysis
+                          </DropdownMenuItem> */}
+                          <DropdownMenuItem 
+                            className="text-red-600 focus:text-red-600"
+                            onClick={() => handleDeleteAnalysis(analysis.id)}
+                          >
+                            <AlertCircle className="h-4 w-4 mr-2" />
+                            Delete Analysis
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
           )}
         </motion.div>
       </main>
