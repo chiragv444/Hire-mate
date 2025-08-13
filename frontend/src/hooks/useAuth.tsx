@@ -6,7 +6,8 @@ import {
   signOut, 
   onAuthStateChanged,
   User as FirebaseUser,
-  updateProfile as updateFirebaseProfile
+  updateProfile as updateFirebaseProfile,
+  getAuth
 } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 import { UserService, OnboardingService, type UserDocument } from '@/lib/firestore';
@@ -292,7 +293,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUserDocument = async (data: Partial<UserDocument>) => {
     if (user) {
       try {
+        // Update Firestore document
         await UserService.updateUserProfile(user.uid, data);
+        
+        // Update Firebase Auth profile if displayName or photoURL changed
+        if (data.displayName || data.photoURL) {
+          const auth = getAuth();
+          if (auth.currentUser) {
+            await updateFirebaseProfile(auth.currentUser, {
+              displayName: data.displayName || user.displayName,
+              photoURL: data.photoURL || user.photoURL,
+            });
+          }
+        }
+        
         await refreshUserDocument();
         toast({
           title: "Profile updated",

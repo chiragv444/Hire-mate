@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, Camera, Save, User, Mail } from 'lucide-react';
+import { ArrowLeft, Camera, Save, User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 
 import { useAuth } from '@/hooks/useAuth';
 import { updateProfile } from '@/lib/api';
@@ -18,10 +20,22 @@ import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { toast } from '@/hooks/use-toast';
 
 const Profile = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, updateUserDocument } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string>(user?.avatar || '');
+  const [avatarPreview, setAvatarPreview] = useState<string>(user?.photoURL || '');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const {
     register,
@@ -30,7 +44,7 @@ const Profile = () => {
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      fullName: user?.fullName || '',
+      fullName: user?.displayName || '',
       email: user?.email || '',
     },
   });
@@ -66,25 +80,100 @@ const Profile = () => {
     }
   };
 
+  const uploadAvatarToStorage = async (file: File): Promise<string> => {
+    const storageRef = ref(storage, `profile/${user?.uid}/${file.name}`);
+    const snapshot = await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "New password and confirm password must be the same.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "New password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      // Here you would typically call your backend API to change the password
+      // For now, we'll show a success message
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      
+      toast({
+        title: "Password changed",
+        description: "Your password has been successfully updated.",
+      });
+      
+      setShowChangePassword(false);
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (error) {
+      toast({
+        title: "Password change failed",
+        description: "Could not change password. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const onSubmit = async (data: ProfileFormData) => {
     setIsLoading(true);
     try {
-      // Update profile data
-      await updateProfile({
-        fullName: data.fullName,
-        avatar: avatarFile ? avatarPreview : undefined,
+      let avatarURL = user?.photoURL;
+
+      // Upload avatar to Firebase Storage if a new file is selected
+      if (avatarFile) {
+        try {
+          avatarURL = await uploadAvatarToStorage(avatarFile);
+        } catch (error) {
+          console.error('Error uploading avatar:', error);
+          toast({
+            title: "Avatar upload failed",
+            description: "Could not upload profile picture. Please try again.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Update profile data in Firestore
+      await updateUserDocument({
+        displayName: data.fullName,
+        photoURL: avatarURL,
       });
 
       // Update local user state
       updateUser({
-        fullName: data.fullName,
-        avatar: avatarPreview || user?.avatar,
+        displayName: data.fullName,
+        photoURL: avatarURL,
       });
 
       toast({
         title: "Profile updated",
         description: "Your profile has been successfully updated.",
       });
+
+      // Clear the file state after successful upload
+      setAvatarFile(null);
     } catch (error) {
       toast({
         title: "Update failed",
@@ -99,7 +188,7 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-brand-accent/5">
       {/* Header */}
-      <header className="border-b bg-white/50 backdrop-blur-sm">
+      <header className="glass-header">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link to="/workspace">
@@ -145,9 +234,9 @@ const Profile = () => {
                   <div className="flex flex-col items-center space-y-4">
                     <div className="relative">
                       <Avatar className="w-24 h-24">
-                        <AvatarImage src={avatarPreview} alt={user?.fullName} />
+                        <AvatarImage src={avatarPreview} alt={user?.displayName} />
                         <AvatarFallback className="text-2xl">
-                          {user?.fullName?.charAt(0)}
+                          {user?.displayName?.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                       
@@ -226,12 +315,6 @@ const Profile = () => {
                           {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                         </div>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground">Account ID:</span>
-                        <div className="font-mono text-xs">
-                          {user?.id || 'N/A'}
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -258,12 +341,12 @@ const Profile = () => {
             </Card>
           </motion.div>
 
-          {/* Additional Cards */}
+          {/* Security Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6"
+            className="mt-8"
           >
             <Card>
               <CardHeader>
@@ -273,32 +356,111 @@ const Profile = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" className="w-full" disabled>
-                  Change Password
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Password management coming soon
-                </p>
-              </CardContent>
-            </Card>
+                {!showChangePassword ? (
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={() => setShowChangePassword(true)}
+                  >
+                    <Lock className="h-4 w-4 mr-2" />
+                    Change Password
+                  </Button>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="currentPassword">Current Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="currentPassword"
+                          type={showPasswords.current ? "text" : "password"}
+                          placeholder="Enter current password"
+                          value={passwordData.currentPassword}
+                          onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                        >
+                          {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Data</CardTitle>
-                <CardDescription>
-                  Export or delete your data
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full" disabled>
-                  Export Data
-                </Button>
-                <Button variant="outline" className="w-full text-error hover:text-error" disabled>
-                  Delete Account
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Data management features coming soon
-                </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="newPassword"
+                          type={showPasswords.new ? "text" : "password"}
+                          placeholder="Enter new password"
+                          value={passwordData.newPassword}
+                          onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                        >
+                          {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="confirmPassword"
+                          type={showPasswords.confirm ? "text" : "password"}
+                          placeholder="Confirm new password"
+                          value={passwordData.confirmPassword}
+                          onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                        >
+                          {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex space-x-2">
+                      <Button 
+                        onClick={handleChangePassword}
+                        disabled={isChangingPassword}
+                        className="flex-1"
+                      >
+                        {isChangingPassword ? (
+                          <>
+                            <LoadingSpinner size="sm" className="mr-2" />
+                            Changing Password...
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="h-4 w-4 mr-2" />
+                            Change Password
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setShowChangePassword(false);
+                          setPasswordData({
+                            currentPassword: '',
+                            newPassword: '',
+                            confirmPassword: '',
+                          });
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

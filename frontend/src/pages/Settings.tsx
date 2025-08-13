@@ -78,7 +78,7 @@ const Settings = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-brand-accent/5">
       {/* Header */}
-      <header className="border-b bg-white/50 backdrop-blur-sm">
+      <header className="glass-header">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link to="/workspace">
@@ -130,7 +130,7 @@ const Settings = () => {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="glass-dropdown">
                         <SelectItem value="light">
                           <div className="flex items-center">
                             <Sun className="h-4 w-4 mr-2" />
