@@ -81,6 +81,10 @@ class ParsedResumeStructure(BaseModel):
     certifications: List[Certification] = Field(description="Certifications", default_factory=list)
     languages: List[str] = Field(description="Languages spoken", default_factory=list)
     awards: List[str] = Field(description="Awards and achievements", default_factory=list)
+    professional_summary: Optional[str] = Field(description="AI-generated comprehensive professional summary")
+    career_highlights: List[str] = Field(description="Key career achievements and highlights", default_factory=list)
+    industry_expertise: List[str] = Field(description="Areas of industry expertise", default_factory=list)
+    leadership_experience: List[str] = Field(description="Leadership and management experience", default_factory=list)
 
 # ----------------------------
 # Regex & parsing helpers
@@ -903,10 +907,22 @@ class EnhancedResumeParser:
                     result.setdefault("certifications", [])
                     result.setdefault("languages", [])
                     result.setdefault("awards", [])
+                    result.setdefault("professional_summary", None)
+                    result.setdefault("career_highlights", [])
+                    result.setdefault("industry_expertise", [])
+                    result.setdefault("leadership_experience", [])
 
                     # Merge LLM output with robust rule-based signals (backfill links/edu/exp + location)
                     result = self._merge_with_rules(result, cleaned_text)
 
+                    # Generate comprehensive professional summary
+                    result["professional_summary"] = self._generate_comprehensive_summary(result)
+                    
+                    # Extract career highlights and industry expertise
+                    result["career_highlights"] = self._extract_career_highlights(result)
+                    result["industry_expertise"] = self._extract_industry_expertise(result)
+                    result["leadership_experience"] = self._extract_leadership_experience(result)
+                    
                     # Enrich with metadata and stats
                     result["raw_text"] = cleaned_text
                     result["parsing_method"] = "openai_langchain"
@@ -1085,6 +1101,14 @@ class EnhancedResumeParser:
                     "certification_count": len(certifications)
                 }
             }
+            # Generate comprehensive professional summary
+            result["professional_summary"] = self._generate_comprehensive_summary(result)
+            
+            # Extract career highlights and industry expertise
+            result["career_highlights"] = self._extract_career_highlights(result)
+            result["industry_expertise"] = self._extract_industry_expertise(result)
+            result["leadership_experience"] = self._extract_leadership_experience(result)
+            
             return result
         except Exception as e:
             print(f"Rule-based parsing failed: {e}")
@@ -1159,6 +1183,207 @@ class EnhancedResumeParser:
                     found_skills[category].append(skill)
         
         return found_skills
+
+    def _generate_comprehensive_summary(self, parsed_data: Dict[str, Any]) -> str:
+        """Generate a comprehensive, detailed professional summary for the resume"""
+        try:
+            personal_info = parsed_data.get("personal_info", {})
+            experience = parsed_data.get("experience", [])
+            education = parsed_data.get("education", [])
+            skills = parsed_data.get("skills", {})
+            projects = parsed_data.get("projects", [])
+            certifications = parsed_data.get("certifications", [])
+            awards = parsed_data.get("awards", [])
+            
+            summary_parts = []
+            
+            # Professional introduction
+            name = personal_info.get("name", "Professional")
+            total_experience = parsed_data.get("statistics", {}).get("total_experience_years", 0)
+            
+            if total_experience > 0:
+                summary_parts.append(f"{name} is a seasoned professional with {total_experience} years of experience")
+            else:
+                summary_parts.append(f"{name} is a dedicated professional")
+            
+            # Industry expertise
+            industry_expertise = self._extract_industry_expertise(parsed_data)
+            if industry_expertise:
+                industries = ', '.join(industry_expertise[:3])
+                summary_parts.append(f"specializing in {industries}")
+            
+            # Key strengths and skills
+            technical_skills = skills.get("technical", [])
+            soft_skills = skills.get("soft", [])
+            domain_skills = skills.get("domain", [])
+            
+            if technical_skills:
+                tech_skills = ', '.join(technical_skills[:5])
+                summary_parts.append(f"with strong technical skills in {tech_skills}")
+            
+            if soft_skills:
+                soft_skills_list = ', '.join(soft_skills[:4])
+                summary_parts.append(f"and exceptional {soft_skills_list} abilities")
+            
+            # Professional experience summary
+            if experience:
+                recent_experience = experience[0] if experience else {}
+                current_role = recent_experience.get("title", "")
+                current_company = recent_experience.get("company", "")
+                
+                if current_role and current_company:
+                    summary_parts.append(f"Currently serving as {current_role} at {current_company}")
+                
+                # Experience highlights
+                experience_highlights = []
+                for exp in experience[:3]:  # Top 3 experiences
+                    title = exp.get("title", "")
+                    company = exp.get("company", "")
+                    if title and company:
+                        experience_highlights.append(f"{title} at {company}")
+                
+                if experience_highlights:
+                    summary_parts.append(f"with previous experience as {', '.join(experience_highlights)}")
+            
+            # Education and credentials
+            if education:
+                highest_degree = None
+                highest_institution = None
+                
+                for edu in education:
+                    degree = edu.get("degree", "")
+                    institution = edu.get("institution", "")
+                    if degree and institution:
+                        if not highest_degree or any(word in degree.lower() for word in ['phd', 'doctorate', 'master', 'bachelor']):
+                            highest_degree = degree
+                            highest_institution = institution
+                
+                if highest_degree and highest_institution:
+                    summary_parts.append(f"holds a {highest_degree} from {highest_institution}")
+            
+            # Certifications and achievements
+            if certifications:
+                cert_list = [cert.get("name", "") for cert in certifications[:3] if cert.get("name")]
+                if cert_list:
+                    summary_parts.append(f"certified in {', '.join(cert_list)}")
+            
+            if awards:
+                award_list = awards[:3]
+                summary_parts.append(f"recognized for {', '.join(award_list)}")
+            
+            # Key achievements and projects
+            if projects:
+                project_count = len(projects)
+                summary_parts.append(f"has successfully delivered {project_count} projects")
+            
+            # Professional impact and value proposition
+            if total_experience > 5:
+                summary_parts.append("demonstrating consistent track record of delivering results and driving organizational success")
+            elif total_experience > 2:
+                summary_parts.append("showing strong potential for growth and contribution to organizational objectives")
+            else:
+                summary_parts.append("bringing fresh perspective and enthusiasm to drive innovation and achieve goals")
+            
+            # Generate comprehensive summary
+            comprehensive_summary = ' '.join(summary_parts)
+            
+            # Add professional conclusion
+            if len(comprehensive_summary) > 300:
+                comprehensive_summary += f" {name} is committed to continuous learning and professional development, making them a valuable asset to any organization seeking dedicated, results-driven professionals."
+            
+            return comprehensive_summary
+            
+        except Exception as e:
+            print(f"Error generating comprehensive summary: {e}")
+            return "Professional summary could not be generated."
+    
+    def _extract_career_highlights(self, parsed_data: Dict[str, Any]) -> List[str]:
+        """Extract key career achievements and highlights"""
+        try:
+            highlights = []
+            experience = parsed_data.get("experience", [])
+            
+            for exp in experience[:3]:  # Top 3 experiences
+                title = exp.get("title", "")
+                company = exp.get("company", "")
+                description = exp.get("description", [])
+                
+                if title and company:
+                    highlight = f"{title} at {company}"
+                    if description:
+                        # Add first achievement if available
+                        for desc in description[:1]:
+                            if desc and len(desc) > 20:
+                                highlight += f": {desc[:100]}..."
+                                break
+                    highlights.append(highlight)
+            
+            return highlights
+        except Exception as e:
+            print(f"Error extracting career highlights: {e}")
+            return []
+    
+    def _extract_industry_expertise(self, parsed_data: Dict[str, Any]) -> List[str]:
+        """Extract areas of industry expertise"""
+        try:
+            expertise = []
+            experience = parsed_data.get("experience", [])
+            skills = parsed_data.get("skills", {})
+            
+            # Extract from company names and job titles
+            company_keywords = ['healthcare', 'finance', 'technology', 'education', 'manufacturing', 'retail', 'consulting', 'government', 'non-profit']
+            
+            for exp in experience:
+                company = exp.get("company", "").lower()
+                title = exp.get("title", "").lower()
+                
+                for keyword in company_keywords:
+                    if keyword in company or keyword in title:
+                        if keyword.title() not in expertise:
+                            expertise.append(keyword.title())
+            
+            # Extract from domain skills
+            domain_skills = skills.get("domain", [])
+            for skill in domain_skills:
+                if len(skill) > 3 and skill not in expertise:
+                    expertise.append(skill)
+            
+            return expertise[:5]  # Limit to top 5
+        except Exception as e:
+            print(f"Error extracting industry expertise: {e}")
+            return []
+    
+    def _extract_leadership_experience(self, parsed_data: Dict[str, Any]) -> List[str]:
+        """Extract leadership and management experience"""
+        try:
+            leadership = []
+            experience = parsed_data.get("experience", [])
+            
+            leadership_keywords = ['manager', 'director', 'lead', 'supervisor', 'coordinator', 'team lead', 'project manager', 'head of', 'chief', 'vp', 'c-level']
+            
+            for exp in experience:
+                title = exp.get("title", "").lower()
+                description = exp.get("description", [])
+                
+                # Check if title indicates leadership
+                if any(keyword in title for keyword in leadership_keywords):
+                    company = exp.get("company", "")
+                    if company:
+                        leadership.append(f"{exp.get('title', '')} at {company}")
+                
+                # Check description for leadership activities
+                for desc in description:
+                    desc_lower = desc.lower()
+                    if any(word in desc_lower for word in ['led', 'managed', 'supervised', 'coordinated', 'directed', 'oversaw']):
+                        company = exp.get("company", "")
+                        if company and exp.get("title", "") not in [l.split(" at ")[0] for l in leadership]:
+                            leadership.append(f"{exp.get('title', '')} at {company}")
+                            break
+            
+            return leadership[:3]  # Limit to top 3
+        except Exception as e:
+            print(f"Error extracting leadership experience: {e}")
+            return []
 
 # Initialize enhanced resume parser with error handling
 try:
