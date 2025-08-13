@@ -177,6 +177,32 @@
     @apply dark:bg-gray-900/80 dark:backdrop-blur-md dark:border-gray-800/20;
   }
   
+  /* Glass dropdown styles */
+  .glass-dropdown {
+    @apply bg-white/90 backdrop-blur-md border border-gray-200/50 shadow-xl;
+  }
+  
+  .glass-dropdown-dark {
+    @apply dark:bg-gray-900/90 dark:backdrop-blur-md dark:border-gray-700/50 dark:shadow-xl;
+  }
+  
+  /* Glass header styles */
+  .glass-header {
+    @apply bg-white/95 backdrop-blur-sm border-b border-gray-200;
+  }
+  
+  .glass-header-scrolled {
+    @apply bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-lg;
+  }
+  
+  .glass-header-dark {
+    @apply dark:bg-gray-900/95 dark:backdrop-blur-sm dark:border-b dark:border-gray-800;
+  }
+  
+  .glass-header-scrolled-dark {
+    @apply dark:bg-gray-900/80 dark:backdrop-blur-md dark:border-b dark:border-gray-800/50 dark:shadow-lg;
+  }
+  
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
   }
