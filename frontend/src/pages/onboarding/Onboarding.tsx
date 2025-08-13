@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
-import { OnboardingData } from '@/types';
+import { OnboardingData, ResumeFileData } from '@/types';
 import { OnboardingService, createAnalysisSession, uploadResumeForAnalysis, setDefaultResume } from '@/lib/firestore';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,30 @@ const Onboarding = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [onboardingData, setOnboardingData] = useState<Partial<OnboardingData>>({});
 
+  // Helper function to clean onboarding data for Firestore
+  const cleanOnboardingDataForFirestore = (data: Partial<OnboardingData>): Partial<OnboardingData> => {
+    const cleanData = { ...data };
+    
+    // Clean resumeFile if it's a File object
+    if (cleanData.resumeFile && cleanData.resumeFile instanceof File) {
+      cleanData.resumeFile = {
+        name: cleanData.resumeFile.name,
+        size: cleanData.resumeFile.size,
+        type: cleanData.resumeFile.type,
+        uploaded: false
+      } as ResumeFileData;
+    }
+    
+    // Remove undefined values that can't be saved to Firestore
+    Object.keys(cleanData).forEach(key => {
+      if (cleanData[key as keyof OnboardingData] === undefined) {
+        delete cleanData[key as keyof OnboardingData];
+      }
+    });
+    
+    return cleanData;
+  };
+
   // Load existing onboarding progress when component mounts
   useEffect(() => {
     const loadOnboardingProgress = async () => {
@@ -36,12 +60,18 @@ const Onboarding = () => {
         try {
           const progress = await OnboardingService.getOnboardingProgress(user.uid);
           if (progress && Object.keys(progress).length > 0) {
-            // Merge all step data into onboardingData
-            const mergedData = Object.values(progress).reduce((acc: any, stepData: any) => ({
-              ...acc,
-              ...stepData
-            }), {});
-            setOnboardingData(mergedData);
+            // Merge all step data into onboardingData and clean it
+            const mergedData = Object.values(progress).reduce((acc: any, stepData: any) => {
+              // Clean each step's data to remove null/undefined values
+              const cleanStepData = Object.fromEntries(
+                Object.entries(stepData).filter(([_, value]) => value !== null && value !== undefined)
+              );
+              return { ...acc, ...cleanStepData };
+            }, {});
+            
+            // Clean the merged data before setting state
+            const cleanMergedData = cleanOnboardingDataForFirestore(mergedData);
+            setOnboardingData(cleanMergedData);
             
             // Determine the last completed step and set current step accordingly
             const completedSteps = Object.keys(progress).length;
@@ -67,7 +97,18 @@ const Onboarding = () => {
     // Save step progress to Firestore if user is logged in
     if (user?.uid) {
       try {
-        await OnboardingService.saveOnboardingProgress(user.uid, `step${currentStep}`, stepData);
+        console.log('Saving step progress for step', currentStep, ':', stepData);
+        
+        const cleanStepData = cleanOnboardingDataForFirestore(stepData);
+        console.log('Clean step data:', cleanStepData);
+        
+        // Only save if we have valid data
+        if (Object.keys(cleanStepData).length > 0) {
+          await OnboardingService.saveOnboardingProgress(user.uid, `step${currentStep}`, cleanStepData);
+          console.log('Step progress saved successfully');
+        } else {
+          console.log('No valid data to save for step', currentStep);
+        }
       } catch (error) {
         console.error('Error saving step progress:', error);
       }
@@ -98,13 +139,20 @@ const Onboarding = () => {
 
     setIsLoading(true);
     try {
+      // Create clean onboarding data without File objects for Firestore
+      const cleanOnboardingData = cleanOnboardingDataForFirestore(onboardingData);
+      
+      // Remove resume-related data since user skipped it
+      delete cleanOnboardingData.resumeFile;
+      delete cleanOnboardingData.resumeData;
+      
       // Save onboarding data to Firestore (without resume)
-      await OnboardingService.completeOnboarding(user.uid, onboardingData as OnboardingData);
+      await OnboardingService.completeOnboarding(user.uid, cleanOnboardingData as OnboardingData);
       
       // Update user document with onboarding completion
       await updateUserDocument({
         onboardingComplete: true,
-        ...onboardingData
+        ...cleanOnboardingData
       });
 
       toast({
@@ -136,46 +184,66 @@ const Onboarding = () => {
 
     setIsLoading(true);
     try {
-      // If user uploaded a resume during onboarding, save it as their default resume
-      if (onboardingData.resumeFile) {
+      // If user uploaded a resume during onboarding, it was already uploaded via the API
+      // We just need to check if we have the resume data
+      if (onboardingData.resumeData && onboardingData.resumeData.id) {
         try {
-          // Create an analysis session for the resume
-          const analysisId = await createAnalysisSession(user.uid, onboardingData.resumeFile.name);
-          
-          // Upload the resume file
-          await uploadResumeForAnalysis(user.uid, analysisId, onboardingData.resumeFile, (progress) => {
-            console.log('Resume upload progress:', progress);
-          });
+          // The resume was already uploaded via the API, so we can use the resume ID
+          const resumeId = onboardingData.resumeData.id;
           
           // Set this resume as the user's default
-          await setDefaultResume(user.uid, analysisId);
+          await setDefaultResume(user.uid, resumeId);
           
           toast({
             title: "Resume uploaded!",
             description: "Your resume has been saved as your default resume.",
           });
         } catch (resumeError) {
-          console.error('Resume upload error:', resumeError);
+          console.error('Resume setup error:', resumeError);
           toast({
-            title: "Resume upload failed",
-            description: "Your onboarding was completed, but we couldn't save your resume. You can upload it later.",
+            title: "Resume setup failed",
+            description: "Your onboarding was completed, but we couldn't set your resume as default. You can do this later.",
             variant: "destructive",
           });
         }
       }
       
+      // Create clean onboarding data without File objects for Firestore
+      const cleanOnboardingData = cleanOnboardingDataForFirestore(onboardingData);
+      
+      console.log('Original onboarding data:', onboardingData);
+      console.log('Clean onboarding data:', cleanOnboardingData);
+      
+      // Only process resumeFile if it exists and is not a File object
+      if (cleanOnboardingData.resumeFile && !(cleanOnboardingData.resumeFile instanceof File)) {
+        // Update the metadata to show it was uploaded
+        (cleanOnboardingData.resumeFile as ResumeFileData).uploaded = true;
+        
+        // If we have resume data from the API, use that ID
+        if (onboardingData.resumeData && onboardingData.resumeData.id) {
+          (cleanOnboardingData.resumeFile as ResumeFileData).analysisId = onboardingData.resumeData.id;
+        }
+      }
+      
+      // Remove resumeData if it's undefined to avoid Firestore errors
+      if (cleanOnboardingData.resumeData === undefined) {
+        delete cleanOnboardingData.resumeData;
+      }
+      
+      console.log('Final clean data to save:', cleanOnboardingData);
+      
       // Save onboarding data to Firestore
-      await OnboardingService.completeOnboarding(user.uid, onboardingData as OnboardingData);
+      await OnboardingService.completeOnboarding(user.uid, cleanOnboardingData as OnboardingData);
       
       // Update user document with onboarding completion
       await updateUserDocument({
         onboardingComplete: true,
-        ...onboardingData
+        ...cleanOnboardingData
       });
 
       toast({
         title: "Welcome aboard!",
-        description: "Your onboarding has been completed successfully.",
+        description: "Your onboarding was completed successfully.",
       });
       navigate('/workspace');
     } catch (error) {

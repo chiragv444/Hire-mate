@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from typing import Optional
 import os
+import uuid
 from datetime import datetime
 
 from ..core.auth import get_current_user
 from ..core.config import settings
 from ..services.resume_parser import resume_parser
 from ..core.firebase import firebase_service
+from ..services.firebase_storage import firebase_storage_service
 from ..models.resume import ResumeUploadRequest, ResumeAnalysisResponse, ResumePreviewResponse
 
 router = APIRouter(prefix="/resume", tags=["resume"])
@@ -38,17 +40,28 @@ async def upload_resume(
                 detail=f"File too large. Maximum size: {settings.max_file_size // (1024*1024)}MB"
             )
         
-        # Save file
-        file_metadata = await resume_parser.save_uploaded_file(
-            file_content, 
-            file.filename, 
-            settings.upload_dir
+        # Save file to Firebase Storage
+        file_url = firebase_storage_service.upload_file(
+            file_content=file_content,
+            filename=file.filename,
+            content_type=file.content_type,
+            folder="resumes"
         )
+        
+        # Create file metadata
+        file_metadata = {
+            'filename': f"{uuid.uuid4()}{os.path.splitext(file.filename)[1]}",
+            'original_name': file.filename,
+            'file_size': len(file_content),
+            'file_type': file.content_type,
+            'file_path': file_url,
+            'upload_date': datetime.now()
+        }
         
         # Parse resume
         parsed_data = await resume_parser.parse_resume(
-            file_metadata['file_path'], 
-            file_metadata['file_type']
+            file_url, 
+            file.content_type
         )
         
         # Prepare resume data for Firestore
@@ -115,17 +128,28 @@ async def upload_resume_onboarding(
                 detail=f"File too large. Maximum size: {settings.max_file_size // (1024*1024)}MB"
             )
         
-        # Save file
-        file_metadata = await resume_parser.save_uploaded_file(
-            file_content, 
-            file.filename, 
-            settings.upload_dir
+        # Save file to Firebase Storage
+        file_url = firebase_storage_service.upload_file(
+            file_content=file_content,
+            filename=file.filename,
+            content_type=file.content_type,
+            folder="resumes"
         )
+        
+        # Create file metadata
+        file_metadata = {
+            'filename': f"{uuid.uuid4()}{os.path.splitext(file.filename)[1]}",
+            'original_name': file.filename,
+            'file_size': len(file_content),
+            'file_type': file.content_type,
+            'file_path': file_url,
+            'upload_date': datetime.now()
+        }
         
         # Parse resume
         parsed_data = await resume_parser.parse_resume(
-            file_metadata['file_path'], 
-            file_metadata['file_type']
+            file_url, 
+            file.content_type
         )
         
         # Prepare resume data for Firestore
@@ -138,6 +162,7 @@ async def upload_resume_onboarding(
             'upload_date': file_metadata['upload_date'],
             'parsed_data': parsed_data,
             'is_default': True,  # Always default for onboarding
+            'file_url': file_url,  # Store the Firebase Storage URL
             'source': 'onboarding'
         }
         
@@ -261,10 +286,10 @@ async def delete_resume(
                 detail="Resume not found"
             )
         
-        # Delete file from storage
-        file_path = resume_data.get('file_path')
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+        # Delete file from Firebase Storage
+        file_url = resume_data.get('file_path') or resume_data.get('file_url')
+        if file_url:
+            firebase_storage_service.delete_file(file_url)
         
         # Delete from Firestore
         if not firebase_service.delete_analysis_session(uid, resume_id):

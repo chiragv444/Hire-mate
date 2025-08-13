@@ -10,6 +10,26 @@ export interface User {
   onboardingCompleted?: boolean;
 }
 
+export interface ResumeFileData {
+  name: string;
+  size: number;
+  type: string;
+  uploaded: boolean;
+  analysisId?: string;
+}
+
+export interface ResumeData {
+  id: string;
+  filename: string;
+  original_name: string;
+  file_url: string;
+  file_size: number;
+  file_type: string;
+  is_default: boolean;
+  parsed_data?: any;
+  created_at?: string;
+}
+
 export interface OnboardingData {
   currentStatus: string;
   industry: string;
@@ -17,8 +37,8 @@ export interface OnboardingData {
   experienceLevel: string;
   userGoals: string[];
   userNote?: string;
-  resumeFile?: File;
-  resumeData?: any;
+  resumeFile?: File | ResumeFileData;
+  resumeData?: ResumeData;
 }
 
 export interface JobDescription {
