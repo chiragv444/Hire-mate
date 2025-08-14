@@ -6,6 +6,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        # Pass build arguments from .env file
+        - OPENAI_API_KEY=${OPENAI_API_KEY}
     container_name: hiremate-backend
     ports:
       - "8000:8000"
