@@ -80,6 +80,15 @@ const App = () => {
                   <CoverLetter />
                 </ProtectedRoute>
               } />
+
+              <Route path="/match-results/:id/cover-letter" element={
+                <ProtectedRoute>
+                  <CoverLetter />
+                </ProtectedRoute>
+              } />
+              
+              {/* Public Routes (No Authentication Required) */}
+              <Route path="/public/match-results/:id" element={<MatchResults isPublic={true} />} />
               
               <Route path="/workspace" element={
                 <ProtectedRoute>

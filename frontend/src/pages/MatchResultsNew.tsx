@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -7,30 +7,39 @@ import {
   FileDown,
   TrendingUp, 
   AlertCircle, 
-  CheckCircle, 
   Lightbulb,
   Star,
   FileText,
   Target,
   Zap,
-  Clock
+  CheckCircle,
+  Clock,
+  BarChart3,
+  Users,
+  Award,
+  Eye,
+  ExternalLink
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Logo } from '@/components/shared/Logo';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { getAnalyticsData } from '@/lib/firestore';
+import { useAuth } from '@/hooks/useAuth';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { getAnalyticsDetails } from '@/lib/api-new';
 
 const MatchResultsNew = () => {
   const { id: analyticsId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [analysis, setAnalysis] = useState<any>(null);
+  const { user } = useAuth();
+  const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showJobDescription, setShowJobDescription] = useState(false);
+  const [showResumeData, setShowResumeData] = useState(false);
 
   useEffect(() => {
     const fetchAnalysisResults = async () => {
@@ -41,7 +50,7 @@ const MatchResultsNew = () => {
       }
 
       try {
-        const result = await getAnalyticsDetails(analyticsId);
+        const result = await getAnalyticsData(analyticsId);
         
         if (!result.success) {
           throw new Error(result.error || 'Failed to fetch analysis results');
@@ -80,7 +89,7 @@ const MatchResultsNew = () => {
           created_at: new Date().toISOString()
         };
 
-        setAnalysis(result.analytics || mockAnalysis);
+        setAnalytics(result.analytics || mockAnalysis);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load analysis results');
       } finally {
@@ -140,9 +149,28 @@ const MatchResultsNew = () => {
     );
   }
 
-  if (!analysis) {
+  if (!analytics) {
     return null;
   }
+
+
+
+  const copyPublicLink = async () => {
+    try {
+      const publicUrl = `${window.location.origin}/public/match-results/${analyticsId}`;
+      await navigator.clipboard.writeText(publicUrl);
+      toast({
+        title: "Public link copied!",
+        description: "Share this link with others to view the analysis results.",
+      });
+    } catch (error) {
+      toast({
+        title: "Copy failed",
+        description: "Could not copy public link to clipboard.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-brand-accent/5">
@@ -161,14 +189,15 @@ const MatchResultsNew = () => {
               <span className="font-medium">Hire Mate</span>
             </div>
           </div>
+          {/* Header Actions */}
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={copyPublicLink}>
               <Share className="h-4 w-4 mr-2" />
-              Share
+              Share Analysis
             </Button>
             <Button variant="outline" size="sm">
               <FileDown className="h-4 w-4 mr-2" />
-              Export
+              Export Analysis
             </Button>
           </div>
         </div>
@@ -179,13 +208,13 @@ const MatchResultsNew = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold">{analysis.job_description?.title || 'Full Stack Engineer'}</h1>
+              <h1 className="text-3xl font-bold">{analytics.job_description?.title || 'Full Stack Engineer'}</h1>
               <p className="text-muted-foreground">
-                Analysis for {analysis.resume?.original_name || 'My Resume.pdf'} • {new Date(analysis.created_at).toLocaleDateString()}
+                Analysis for {analytics.resume?.original_name || 'My Resume.pdf'} • {new Date(analytics.created_at).toLocaleDateString()}
               </p>
             </div>
-            <Badge className={getFitLevelColor(analysis.results?.fit_level || 'Not Fit')}>
-              {analysis.results?.fit_level || 'Not Fit'}
+            <Badge className={getFitLevelColor(analytics.results?.fit_level || 'Not Fit')}>
+              {analytics.results?.fit_level || 'Not Fit'}
             </Badge>
           </div>
         </div>
@@ -206,14 +235,14 @@ const MatchResultsNew = () => {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex items-end space-x-2">
-                  <span className={`text-4xl font-bold ${getScoreColor(analysis.results?.match_score || 65)}`}>
-                    {analysis.results?.match_score || 65}%
+                  <span className={`text-4xl font-bold ${getScoreColor(analytics.results?.match_score || 65)}`}>
+                    {analytics.results?.match_score || 65}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
-                    className={`h-2 rounded-full ${getScoreBarColor(analysis.results?.match_score || 65)}`}
-                    style={{ width: `${analysis.results?.match_score || 65}%` }}
+                    className={`h-2 rounded-full ${getScoreBarColor(analytics.results?.match_score || 65)}`}
+                    style={{ width: `${analytics.results?.match_score || 65}%` }}
                   ></div>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -237,14 +266,14 @@ const MatchResultsNew = () => {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex items-end space-x-2">
-                  <span className={`text-4xl font-bold ${getScoreColor(analysis.results?.ats_score || 68)}`}>
-                    {analysis.results?.ats_score || 68}%
+                  <span className={`text-4xl font-bold ${getScoreColor(analytics.results?.ats_score || 68)}`}>
+                    {analytics.results?.ats_score || 68}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
-                    className={`h-2 rounded-full ${getScoreBarColor(analysis.results?.ats_score || 68)}`}
-                    style={{ width: `${analysis.results?.ats_score || 68}%` }}
+                    className={`h-2 rounded-full ${getScoreBarColor(analytics.results?.ats_score || 68)}`}
+                    style={{ width: `${analytics.results?.ats_score || 68}%` }}
                   ></div>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -253,6 +282,155 @@ const MatchResultsNew = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* View Data Buttons */}
+        <div className="flex flex-wrap gap-3 mb-6">
+
+          <Dialog open={showJobDescription} onOpenChange={setShowJobDescription}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Eye className="h-4 w-4 mr-2" />
+                View Job Description
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Job Description
+                </DialogTitle>
+                <DialogDescription>
+                  Detailed job requirements and description used for this analysis
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Position Details</h4>
+                      <p className="text-sm text-gray-600">{analytics?.job_description?.title || analytics?.job_data?.title || 'Not available'}</p>
+                      <p className="text-sm text-gray-600">{analytics?.job_description?.company || analytics?.job_data?.company || 'Not available'}</p>
+                      <p className="text-sm text-gray-600">{analytics?.job_description?.location || analytics?.job_data?.location || 'Not available'}</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Requirements</h4>
+                      <p className="text-sm text-gray-600">Experience Level: {analytics?.job_description?.experience_level || analytics?.job_data?.experience_level || 'Not specified'}</p>
+                      <p className="text-sm text-gray-600">Years Required: {analytics?.job_description?.years_of_experience || analytics?.job_data?.years_of_experience || 'Not specified'}</p>
+                    </div>
+                  </div>
+                  
+                  {(analytics?.job_description?.linkedin_url || analytics?.job_data?.linkedin_url) && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">LinkedIn Job</h4>
+                      <a 
+                        href={analytics?.job_description?.linkedin_url || analytics?.job_data?.linkedin_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-blue-600 hover:text-blue-800"
+                      >
+                        View on LinkedIn <ExternalLink className="h-4 w-4 ml-1" />
+                      </a>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Required Skills</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {(analytics?.job_description?.skills || analytics?.job_data?.skills || analytics?.job_description?.parsed_skills || []).map((skill: string, index: number) => (
+                        <Badge key={index} variant="secondary">
+                          {skill}
+                        </Badge>
+                      )) || <span className="text-gray-500">No skills specified</span>}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Full Description</h4>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {analytics?.job_description?.description || analytics?.job_data?.description || 'No description available'}
+                      </p>
+                    </div>
+                  </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showResumeData} onOpenChange={setShowResumeData}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Eye className="h-4 w-4 mr-2" />
+                View Resume Data
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Resume Analysis Data
+                </DialogTitle>
+                <DialogDescription>
+                  Parsed resume information used for this analysis
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Personal Information</h4>
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <p className="text-sm text-gray-700">Name: {analytics?.resume?.parsed_data?.personal_info?.name || 'Not available'}</p>
+                    <p className="text-sm text-gray-700">Email: {analytics?.resume?.parsed_data?.personal_info?.email || 'Not available'}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Technical Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analytics?.resume?.parsed_data?.skills?.technical?.map((skill: string, index: number) => (
+                      <Badge key={index} variant="secondary">
+                        {skill}
+                      </Badge>
+                    )) || <span className="text-gray-500">No technical skills found</span>}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Soft Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analytics?.resume?.parsed_data?.skills?.soft?.map((skill: string, index: number) => (
+                      <Badge key={index} variant="outline">
+                        {skill}
+                      </Badge>
+                    )) || <span className="text-gray-500">No soft skills found</span>}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Experience</h4>
+                  <div className="space-y-2">
+                    {analytics?.resume?.parsed_data?.experience?.map((exp: any, index: number) => (
+                      <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                        <p className="font-medium text-gray-900">{exp.title}</p>
+                        <p className="text-sm text-gray-600">{exp.company}</p>
+                        <p className="text-sm text-gray-500">{exp.duration}</p>
+                      </div>
+                    )) || <span className="text-gray-500">No experience found</span>}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Education</h4>
+                  <div className="space-y-2">
+                    {analytics?.resume?.parsed_data?.education?.map((edu: any, index: number) => (
+                      <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                        <p className="font-medium text-gray-900">{edu.degree}</p>
+                        <p className="text-sm text-gray-600">{edu.institution}</p>
+                      </div>
+                    )) || <span className="text-gray-500">No education found</span>}
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Tabs Section */}
@@ -276,7 +454,7 @@ const MatchResultsNew = () => {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2 mb-6">
-                  {(analysis.results?.missing_skills || ['Docker', 'Kubernetes', 'CI/CD', 'Microservices', 'AWS Lambda']).map((skill: string, index: number) => (
+                  {(analytics.results?.missing_skills || ['Docker', 'Kubernetes', 'CI/CD', 'Microservices', 'AWS Lambda']).map((skill: string, index: number) => (
                     <Badge key={index} variant="destructive" className="text-sm">
                       {skill}
                     </Badge>
@@ -295,7 +473,11 @@ const MatchResultsNew = () => {
                         <Button variant="outline" size="sm" className="mr-2">
                           Enhance Resume
                         </Button>
-                        <Button variant="default" size="sm">
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => navigate(`/match-results/${analyticsId}/cover-letter`)}
+                        >
                           Generate Cover Letter
                         </Button>
                       </div>
@@ -360,7 +542,7 @@ const MatchResultsNew = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {(analysis.results?.suggestions || [
+                  {(analytics.results?.suggestions || [
                     'Add these skills to your resume: Docker, Kubernetes, CI/CD',
                     'Consider tailoring your resume to better match the job requirements',
                     'Highlight relevant experience and achievements'
@@ -384,7 +566,7 @@ const MatchResultsNew = () => {
             <FileText className="mr-2 h-4 w-4" />
             Generate Cover Letter
           </Button>
-          <Button size="lg" variant="outline">
+          <Button size="lg" variant="outline" onClick={() => navigate('/new-analysis')}>
             <Target className="mr-2 h-4 w-4" />
             Analyze Another Job
           </Button>

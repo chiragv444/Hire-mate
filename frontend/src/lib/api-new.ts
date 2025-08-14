@@ -335,3 +335,102 @@ export async function setDefaultResume(
     };
   }
 }
+
+// Cover Letter API Functions
+
+export interface CoverLetterData {
+  opening_paragraph: string;
+  body_paragraphs: string[];
+  closing_paragraph: string;
+  full_content: string;
+  word_count: number;
+  paragraph_count: number;
+  generated_at: string;
+  generation_method?: string;
+  processing_time_ms?: number;
+}
+
+export async function generateCoverLetter(
+  analyticsId: string
+): Promise<{ success: boolean; cover_letter?: CoverLetterData; error?: string }> {
+  try {
+    const response = await apiRequest(`/cover-letter/generate/${analyticsId}`, {
+      method: 'POST',
+    });
+
+    return {
+      success: true,
+      cover_letter: response.cover_letter,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate cover letter',
+    };
+  }
+}
+
+export async function regenerateCoverLetter(
+  analyticsId: string
+): Promise<{ success: boolean; cover_letter?: CoverLetterData; error?: string }> {
+  try {
+    const response = await apiRequest(`/cover-letter/regenerate/${analyticsId}`, {
+      method: 'POST',
+    });
+
+    return {
+      success: true,
+      cover_letter: response.cover_letter,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to regenerate cover letter',
+    };
+  }
+}
+
+export async function getCoverLetter(
+  analyticsId: string
+): Promise<{ 
+  success: boolean; 
+  cover_letter?: CoverLetterData; 
+  job_description?: any; 
+  resume?: any; 
+  error?: string 
+}> {
+  try {
+    const response = await apiRequest(`/cover-letter/${analyticsId}`, {
+      method: 'GET',
+    });
+
+    return {
+      success: true,
+      cover_letter: response.cover_letter,
+      job_description: response.job_description,
+      resume: response.resume,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get cover letter',
+    };
+  }
+}
+
+export async function deleteCoverLetter(
+  analyticsId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiRequest(`/cover-letter/${analyticsId}`, {
+      method: 'DELETE',
+    });
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete cover letter',
+    };
+  }
+}
