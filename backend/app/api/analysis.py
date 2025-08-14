@@ -8,7 +8,7 @@ from datetime import datetime
 from ..core.auth import get_current_user
 from ..core.config import settings
 from ..services.resume_parser import resume_parser
-from ..services.job_scraper import job_scraper
+from ..services.enhanced_job_parser import enhanced_job_parser
 from ..core.firebase import firebase_service
 from ..services.firebase_storage import firebase_storage_service
 from ..models.analysis import (
@@ -136,43 +136,61 @@ async def analyze_job_description(
         job_data = {}
         scraped_data = None
         
-        # If LinkedIn URL is provided, scrape it first
+        # Parse job description using enhanced parser
         if request.linkedin_url:
             try:
-                scraped_data = await job_scraper.scrape_linkedin_job(str(request.linkedin_url))
-                # Use scraped description if available, otherwise use provided description
-                description_to_parse = scraped_data.get('description', request.job_description)
-                
-                # If scraping failed but returned error structure, use provided description
-                if scraped_data.get('scraping_error'):
-                    description_to_parse = request.job_description
-                    
+                parsed_data = await enhanced_job_parser.scrape_linkedin_job(request.linkedin_url)
+                scraped_data = parsed_data
             except Exception as e:
-                # If scraping fails, use the provided description
-                description_to_parse = request.job_description
+                # If scraping fails, parse the provided description
+                parsed_data = await enhanced_job_parser.parse_job_description(request.job_description)
                 scraped_data = {'error': str(e)}
         else:
-            description_to_parse = request.job_description
+            parsed_data = await enhanced_job_parser.parse_job_description(request.job_description)
+            scraped_data = None
         
-        # Parse the job description
-        parsed_data = await job_scraper.parse_job_description(description_to_parse)
-        
-        # Prepare job data for Firestore
+        # Prepare job data for Firestore - handle enhanced_job_parser structure
+        company_name = parsed_data.get('company', {})
+        if isinstance(company_name, dict):
+            company_name = company_name.get('name', 'Company')
+        else:
+            company_name = str(company_name or 'Company')
+            
+        location_info = parsed_data.get('location', {})
+        if isinstance(location_info, dict):
+            location = location_info.get('full_location', 'Location')
+        else:
+            location = str(location_info or 'Location')
+            
+        requirements_info = parsed_data.get('requirements', {})
+        if isinstance(requirements_info, dict):
+            skills = requirements_info.get('required_skills', []) + requirements_info.get('preferred_skills', [])
+            experience_level = requirements_info.get('experience_level')
+        else:
+            skills = []
+            experience_level = None
+            
+        details_info = parsed_data.get('details', {})
+        if isinstance(details_info, dict):
+            job_type = details_info.get('job_type')
+        else:
+            job_type = None
+            
         job_data = {
-            'title': parsed_data.get('title', scraped_data.get('title', 'Job Title')),
-            'company': parsed_data.get('company', scraped_data.get('company', 'Company')),
-            'location': parsed_data.get('location', scraped_data.get('location', 'Location')),
+            'title': parsed_data.get('title', 'Job Title'),
+            'company': company_name,
+            'location': location,
             'description': description_to_parse,
-            'skills': parsed_data.get('skills', []),
+            'skills': skills,
             'requirements': parsed_data.get('requirements', []),
             'responsibilities': parsed_data.get('responsibilities', []),
             'qualifications': parsed_data.get('qualifications', []),
-            'keywords': parsed_data.get('keywords', []),
-            'experience_level': parsed_data.get('experience_level', scraped_data.get('experience_level')),
-            'job_type': parsed_data.get('job_type', scraped_data.get('job_type')),
-            'salary_info': parsed_data.get('salary_info', scraped_data.get('salary_range')),
+            'keywords': skills,  # Use skills as keywords
+            'experience_level': experience_level,
+            'job_type': job_type,
+            'salary_info': parsed_data.get('salary_info'),
             'linkedin_url': str(request.linkedin_url) if request.linkedin_url else None,
-            'source': 'linkedin' if request.linkedin_url else 'manual',
+            'source': 'linkedin' if request.linkedin_url else None,
             'analysis_id': request.analysis_id if hasattr(request, 'analysis_id') else None
         }
         

@@ -9,7 +9,7 @@ from ..core.config import settings
 from ..services.resume_parser import resume_parser
 from ..services.enhanced_resume_parser import enhanced_resume_parser
 from ..services.enhanced_resume_analyzer import enhanced_resume_analyzer
-from ..services.job_scraper import job_scraper
+
 from ..services.enhanced_job_parser import enhanced_job_parser
 from ..services.firebase_simple import simplified_firebase_service
 from ..services.firebase_storage import firebase_storage_service
