@@ -10,7 +10,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 import time
 from urllib.parse import urlparse, parse_qs
@@ -296,10 +295,18 @@ class EnhancedJobParser:
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-plugins")
+            chrome_options.add_argument("--disable-web-security")
+            chrome_options.add_argument("--allow-running-insecure-content")
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
             chrome_options.add_argument(f"user-agent={self.headers['User-Agent']}")
             
             # Initialize driver
-            service = Service(ChromeDriverManager().install())
+            service = Service("/usr/local/bin/chromedriver")
             driver = webdriver.Chrome(service=service, options=chrome_options)
             
             # Load the page
@@ -314,22 +321,45 @@ class EnhancedJobParser:
             time.sleep(3)
             
             # Get page source and parse with BeautifulSoup
-            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            page_source = driver.page_source
+            print(f"Page source length: {len(page_source) if page_source else 'None'}")
+            
+            if not page_source or len(page_source.strip()) == 0:
+                print("Warning: Empty page source from Selenium")
+                return None
+            
+            soup = BeautifulSoup(page_source, 'html.parser')
             
             # Extract job information using BeautifulSoup
-            job_data = {
-                'url': url,
-                'scraped_at': datetime.now().isoformat(),
-                'title': self._extract_job_title(soup),
-                'company_name': self._extract_company_name(soup),
-                'location': self._extract_location(soup),
-                'description': self._extract_job_description(soup)
-            }
-            
-            return job_data
+            try:
+                title = self._extract_job_title(soup)
+                company_name = self._extract_company_name(soup)
+                location = self._extract_location(soup)
+                description = self._extract_job_description(soup)
+                
+                job_data = {
+                    'url': url,
+                    'scraped_at': datetime.now().isoformat(),
+                    'title': title,
+                    'company_name': company_name,
+                    'location': location,
+                    'description': description
+                }
+                
+                print(f"Extracted job data: {job_data}")
+                return job_data
+            except Exception as e:
+                print(f"Error extracting job data from soup: {e}")
+                import traceback
+                traceback.print_exc()
+                return None
             
         except Exception as e:
             print(f"Selenium scraping failed: {e}")
+            print(f"Error type: {type(e)}")
+            print(f"Error details: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
         finally:
             if driver:
@@ -860,17 +890,20 @@ class EnhancedJobParser:
         
         # Combine and clean up
         if description_parts:
-            combined = '\n\n'.join(description_parts)
-            # Remove duplicates and clean up
-            lines = combined.split('\n')
-            unique_lines = []
-            seen = set()
-            for line in lines:
-                line = line.strip()
-                if line and line not in seen and len(line) > 10:
-                    seen.add(line)
-                    unique_lines.append(line)
-            return '\n\n'.join(unique_lines)
+            # Filter out None values and ensure all parts are strings
+            valid_parts = [str(part).strip() for part in description_parts if part and str(part).strip()]
+            if valid_parts:
+                combined = '\n\n'.join(valid_parts)
+                # Remove duplicates and clean up
+                lines = combined.split('\n')
+                unique_lines = []
+                seen = set()
+                for line in lines:
+                    line = line.strip()
+                    if line and line not in seen and len(line) > 10:
+                        seen.add(line)
+                        unique_lines.append(line)
+                return '\n\n'.join(unique_lines)
         
         return "Description Not Found"
 
