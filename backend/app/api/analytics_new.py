@@ -3,12 +3,14 @@ from fastapi.responses import JSONResponse
 from typing import Optional, Dict, Any
 import os
 from datetime import datetime
+import asyncio
 
 from ..core.auth import get_current_user
 from ..core.config import settings
 from ..services.resume_parser import resume_parser
 from ..services.enhanced_resume_parser import enhanced_resume_parser
 from ..services.enhanced_resume_analyzer import enhanced_resume_analyzer
+from ..model_integration.resume_job_matcher import predict_resume_job_fit_simple, is_model_available
 
 from ..services.enhanced_job_parser import enhanced_job_parser
 from ..services.firebase_simple import simplified_firebase_service
@@ -442,6 +444,52 @@ async def perform_analysis(
                 detail="Job description or resume content is missing"
             )
         
+        # Call trained model prediction asynchronously (fire and forget)
+        async def run_trained_model_prediction():
+            try:
+                # Check if the model is available
+                if not is_model_available():
+                    print("Trained model not available. Skipping prediction.")
+                    return
+                
+                print(f"Starting trained model prediction for analytics {request.analytics_id}")
+                
+                # Get resume summary (first 1000 characters for model input)
+                resume_summary = resume_raw_text[:1000] if len(resume_raw_text) > 1000 else resume_raw_text
+                job_summary = job_description_text[:1000] if len(job_description_text) > 1000 else job_description_text
+                
+                # Call the trained model
+                model_result = predict_resume_job_fit_simple(resume_summary, job_summary)
+                
+                print(f"Trained model prediction completed: {model_result}")
+                
+                # Store the model results in the database
+                model_results_data = {
+                    'trained_model_results': {
+                        'fit_status': model_result.get('fit_status', 'Not Fit'),
+                        'percentage': model_result.get('percentage', 0.0),
+                        'predicted_at': datetime.now().isoformat()
+                    }
+                }
+                
+                # Update analytics with model results
+                simplified_firebase_service.update_analytics(
+                    request.analytics_id,
+                    current_user['uid'],
+                    model_results_data
+                )
+                
+                print(f"Trained model results saved to database for analytics {request.analytics_id}")
+                
+            except Exception as e:
+                # Log error but don't fail the main analysis
+                print(f"Trained model prediction failed: {str(e)}")
+        
+        # Start the trained model prediction in background (fire and forget)
+        # This runs asynchronously and doesn't block the main analysis
+        # Results will be stored in the database when the model completes
+        asyncio.create_task(run_trained_model_prediction())
+        
         # Perform enhanced analysis using the enhanced resume analyzer
         if enhanced_resume_analyzer:
             analysis_results = await enhanced_resume_analyzer.analyze_resume_against_job(
@@ -775,4 +823,4 @@ def _generate_improvements(missing_skills: list, match_score: float) -> list:
         improvements.append("Quantify your achievements with specific metrics")
         improvements.append("Use industry-specific keywords from the job description")
     
-    return improvements
+    return improvements 

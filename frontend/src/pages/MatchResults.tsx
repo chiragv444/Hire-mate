@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, 
   Share, 
@@ -146,6 +146,27 @@ const MatchResults: React.FC<MatchResultsProps> = ({ isPublic = false }) => {
   const matchScore = enhancedResults.match_score || basicResults.match_score || 0;
   const atsScore = enhancedResults.ats_score || basicResults.ats_score || 0;
   const fitLevel = enhancedResults.fit_level || basicResults.fit_level || 'Not Fit';
+  
+  // Extract trained model results - try different possible paths
+  const trainedModelResults = results.trained_model_results || 
+                             analytics.trained_model_results || 
+                             analytics.results?.trained_model_results || {};
+  
+  // Debug: Log the data structure
+  console.log('Analytics data:', analytics);
+  console.log('Results:', results);
+  console.log('Trained model results:', trainedModelResults);
+  console.log('Fit status:', trainedModelResults.fit_status);
+  console.log('Percentage:', trainedModelResults.percentage);
+  
+  // Try different possible paths
+  console.log('Direct from analytics:', analytics.trained_model_results);
+  console.log('From results:', results.trained_model_results);
+  console.log('From analytics.results:', analytics.results?.trained_model_results);
+  
+  // Check if data exists anywhere
+  console.log('Full analytics object keys:', Object.keys(analytics));
+  console.log('Full results object keys:', Object.keys(results));
   
   // Extract missing keywords and suggestions
   const missingKeywords = enhancedResults.missing_keywords || basicResults.missing_skills || [];
@@ -415,6 +436,46 @@ const MatchResults: React.FC<MatchResultsProps> = ({ isPublic = false }) => {
               </div>
             </div>
           </div>
+
+          {/* Trained Model Results */}
+          <AnimatePresence>
+            {trainedModelResults.fit_status && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6"
+              >
+                <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Target className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-700">Trained AI Model Prediction</div>
+                          <div className="text-xs text-gray-500">Fine-tuned DistilBERT analysis</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {trainedModelResults.percentage}%
+                        </div>
+                        <div className={`text-sm font-medium px-3 py-1 rounded-full ${
+                          trainedModelResults.fit_status === 'Good Fit' ? 'bg-green-100 text-green-800' :
+                          trainedModelResults.fit_status === 'Possible Fit' ? 'bg-orange-100 text-orange-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {trainedModelResults.fit_status}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Enhanced Analysis Summary */}
           <div className="mb-8">
