@@ -16,7 +16,9 @@ import {
   Clock,
   BarChart3,
   Users,
-  Award
+  Award,
+  Eye,
+  ExternalLink
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -26,14 +28,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { getAnalyticsData } from '@/lib/firestore';
 import { useAuth } from '@/hooks/useAuth';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { toast } from '@/hooks/use-toast';
 
-const MatchResults = () => {
+interface MatchResultsProps {
+  isPublic?: boolean;
+}
+
+const MatchResults: React.FC<MatchResultsProps> = ({ isPublic = false }) => {
   const { id: analyticsId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showJobDescription, setShowJobDescription] = useState(false);
+  const [showResumeData, setShowResumeData] = useState(false);
 
   useEffect(() => {
     if (!analyticsId || !user) {
@@ -124,6 +134,8 @@ const MatchResults = () => {
     );
   }
 
+
+
   const results = analytics.results || {};
   
   // Extract enhanced analysis results
@@ -161,6 +173,23 @@ const MatchResults = () => {
       day: 'numeric'
     }) : 'Recent';
 
+  const copyPublicLink = async () => {
+    try {
+      const publicUrl = `${window.location.origin}/public/match-results/${analyticsId}`;
+      await navigator.clipboard.writeText(publicUrl);
+      toast({
+        title: isPublic ? "Link copied!" : "Public link copied!",
+        description: isPublic ? "Analysis results link has been copied to your clipboard." : "Share this link with others to view the analysis results.",
+      });
+    } catch (error) {
+      toast({
+        title: "Copy failed",
+        description: "Could not copy link to clipboard.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -168,15 +197,17 @@ const MatchResults = () => {
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/workspace')}
-                className="flex items-center text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Workspace
-              </Button>
+              {!isPublic && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/workspace')}
+                  className="flex items-center text-gray-600 hover:text-gray-900"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Workspace
+                </Button>
+              )}
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-sm">H</span>
@@ -184,22 +215,181 @@ const MatchResults = () => {
                 <span className="text-lg font-semibold text-gray-900">Hire Mate</span>
               </div>
             </div>
+            {/* Header Actions */}
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm">
-                <Share className="mr-2 h-4 w-4" />
-                Share
-              </Button>
-              <Button variant="outline" size="sm">
-                <FileDown className="mr-2 h-4 w-4" />
-                Export
-              </Button>
+              {!isPublic ? (
+                <>
+                  <Button variant="outline" size="sm" onClick={copyPublicLink}>
+                    <Share className="h-4 w-4 mr-2" />
+                    Share Analysis
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Export Analysis
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="sm" onClick={copyPublicLink}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* View Data Buttons */}
       <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="flex flex-wrap gap-3 mb-6">
+
+          <Dialog open={showJobDescription} onOpenChange={setShowJobDescription}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Eye className="h-4 w-4 mr-2" />
+                View Job Description
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Job Description
+                </DialogTitle>
+                <DialogDescription>
+                  Detailed job requirements and description used for this analysis
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Position Details</h4>
+                      <p className="text-sm text-gray-600">{analytics?.job_description?.title || analytics?.job_data?.title || 'Not available'}</p>
+                      <p className="text-sm text-gray-600">{analytics?.job_description?.company || analytics?.job_data?.company || 'Not available'}</p>
+                      <p className="text-sm text-gray-600">{analytics?.job_description?.location || analytics?.job_data?.location || 'Not available'}</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Requirements</h4>
+                      <p className="text-sm text-gray-600">Experience Level: {analytics?.job_description?.experience_level || analytics?.job_data?.experience_level || 'Not specified'}</p>
+                      <p className="text-sm text-gray-600">Years Required: {analytics?.job_description?.years_of_experience || analytics?.job_data?.years_of_experience || 'Not specified'}</p>
+                    </div>
+                  </div>
+                  
+                  {(analytics?.job_description?.linkedin_url || analytics?.job_data?.linkedin_url) && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">LinkedIn Job</h4>
+                      <a 
+                        href={analytics?.job_description?.linkedin_url || analytics?.job_data?.linkedin_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-blue-600 hover:text-blue-800"
+                      >
+                        View on LinkedIn <ExternalLink className="h-4 w-4 ml-1" />
+                      </a>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Required Skills</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {(analytics?.job_description?.skills || analytics?.job_data?.skills || analytics?.job_description?.parsed_skills || []).map((skill: string, index: number) => (
+                        <Badge key={index} variant="secondary">
+                          {skill}
+                        </Badge>
+                      )) || <span className="text-gray-500">No skills specified</span>}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Full Description</h4>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {analytics?.job_description?.description || analytics?.job_data?.description || 'No description available'}
+                      </p>
+                    </div>
+                  </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showResumeData} onOpenChange={setShowResumeData}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Eye className="h-4 w-4 mr-2" />
+                View Resume Data
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Resume Analysis Data
+                </DialogTitle>
+                <DialogDescription>
+                  Parsed resume information used for this analysis
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Personal Information</h4>
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <p className="text-sm text-gray-700">Name: {analytics?.resume?.parsed_data?.personal_info?.name || 'Not available'}</p>
+                    <p className="text-sm text-gray-700">Email: {analytics?.resume?.parsed_data?.personal_info?.email || 'Not available'}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Technical Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analytics?.resume?.parsed_data?.skills?.technical?.map((skill: string, index: number) => (
+                      <Badge key={index} variant="secondary">
+                        {skill}
+                      </Badge>
+                    )) || <span className="text-gray-500">No technical skills found</span>}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Soft Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analytics?.resume?.parsed_data?.skills?.soft?.map((skill: string, index: number) => (
+                      <Badge key={index} variant="outline">
+                        {skill}
+                      </Badge>
+                    )) || <span className="text-gray-500">No soft skills found</span>}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Experience</h4>
+                  <div className="space-y-2">
+                    {analytics?.resume?.parsed_data?.experience?.map((exp: any, index: number) => (
+                      <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                        <p className="font-medium text-gray-900">{exp.title}</p>
+                        <p className="text-sm text-gray-600">{exp.company}</p>
+                        <p className="text-sm text-gray-500">{exp.duration}</p>
+                      </div>
+                    )) || <span className="text-gray-500">No experience found</span>}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Education</h4>
+                  <div className="space-y-2">
+                    {analytics?.resume?.parsed_data?.education?.map((edu: any, index: number) => (
+                      <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                        <p className="font-medium text-gray-900">{edu.degree}</p>
+                        <p className="text-sm text-gray-600">{edu.institution}</p>
+                      </div>
+                    )) || <span className="text-gray-500">No education found</span>}
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Main Content */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -277,7 +467,7 @@ const MatchResults = () => {
                 </div>
                 
                 {/* Quick Actions */}
-                <div className="mt-6 pt-6 border-t border-blue-200">
+                {/* <div className="mt-6 pt-6 border-t border-blue-200">
                   <div className="flex flex-wrap justify-center gap-3">
                     <Button variant="outline" size="sm" className="bg-white">
                       <FileDown className="h-4 w-4 mr-2" />
@@ -292,7 +482,7 @@ const MatchResults = () => {
                       Analyze Another Job
                     </Button>
                   </div>
-                </div>
+                </div> */}
               </CardContent>
             </Card>
           </div>
@@ -325,26 +515,33 @@ const MatchResults = () => {
                     ))}
                   </div>
 
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <div className="flex items-center mb-2">
-                      <Lightbulb className="h-4 w-4 text-blue-600 mr-2" />
-                      <span className="font-medium text-blue-900">Quick Actions</span>
+                  {!isPublic && (
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <div className="flex items-center mb-2">
+                        <Lightbulb className="h-4 w-4 text-blue-600 mr-2" />
+                        <span className="font-medium text-blue-900">Quick Actions</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="justify-start bg-blue-600 hover:bg-blue-700"
+                          onClick={() => navigate(`/match-results/${analyticsId}/cover-letter`)}
+                        >
+                          <FileDown className="h-4 w-4 mr-2" />
+                          Generate Cover Letter
+                        </Button>
+                        <Button variant="outline" size="sm" className="justify-start">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Find Better Job Matches
+                        </Button>
+                        {/* <Button variant="outline" size="sm" className="justify-start">
+                          <Star className="h-4 w-4 mr-2" />
+                          Enhance Resume
+                        </Button> */}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <Button variant="outline" size="sm" className="justify-start">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Find Better Job Matches
-                      </Button>
-                      <Button variant="outline" size="sm" className="justify-start">
-                        <Star className="h-4 w-4 mr-2" />
-                        Enhance Resume
-                      </Button>
-                      <Button variant="default" size="sm" className="justify-start bg-blue-600 hover:bg-blue-700">
-                        <FileDown className="h-4 w-4 mr-2" />
-                        Generate Cover Letter
-                      </Button>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -360,19 +557,20 @@ const MatchResults = () => {
                   </div>
                   <p className="text-sm text-gray-600 mb-4">Recommendations to improve your resume's compatibility with Applicant Tracking Systems</p>
                   
-                  {atsFeedback.length > 0 ? (
-                    <div className="space-y-4">
+                  {atsFeedback.length > 0 && (
+                    <div className="space-y-4 mb-6">
                       {atsFeedback.map((feedback: string, index: number) => (
                         <div key={index} className="flex items-start space-x-3">
                           <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
                           <div>
-                            <p className="font-medium text-gray-900">ATS Optimization Tip</p>
-                            <p className="text-sm text-gray-600">{feedback}</p>
+                            <p className="text-sm text-gray-700">{feedback}</p>
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
+                  )}
+                  
+                  {atsFeedback.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
                       <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
                       <p>Your resume appears to be well-optimized for ATS systems!</p>
@@ -420,19 +618,20 @@ const MatchResults = () => {
                   </div>
                   <p className="text-sm text-gray-600 mb-4">Professional recommendations to improve your match score and overall application strength</p>
                   
-                  {suggestions.length > 0 ? (
+                  {suggestions.length > 0 && (
                     <div className="space-y-4">
                       {suggestions.map((suggestion: string, index: number) => (
                         <div key={index} className="flex items-start space-x-3">
                           <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
                           <div>
-                            <p className="font-medium text-gray-900">Strategic Action</p>
-                            <p className="text-sm text-gray-600">{suggestion}</p>
+                            <p className="text-sm text-gray-700">{suggestion}</p>
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
+                  )}
+                  
+                  {suggestions.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
                       <Award className="h-12 w-12 mx-auto mb-4 text-blue-500" />
                       <p>Your resume appears to be a strong match for this position!</p>
@@ -555,20 +754,22 @@ const MatchResults = () => {
           </Tabs>
 
           {/* Bottom Action Buttons */}
-          <div className="mt-8 flex flex-col md:flex-row gap-4">
-            <Button className="flex-1 bg-blue-600 hover:bg-blue-700">
-              <FileDown className="mr-2 h-4 w-4" />
-              Download Enhanced Resume
-            </Button>
-            <Button variant="outline" className="flex-1">
-              <Target className="mr-2 h-4 w-4" />
-              Analyze Another Job
-            </Button>
-            <Button variant="outline" className="flex-1">
-              <Share className="mr-2 h-4 w-4" />
-              Share Analysis
-            </Button>
-          </div>
+          {!isPublic && (
+            <div className="mt-8 flex flex-col md:flex-row gap-4">
+              {/* <Button className="flex-1 bg-blue-600 hover:bg-blue-700">
+                <FileDown className="mr-2 h-4 w-4" />
+                Download Enhanced Resume
+              </Button> */}
+              <Button variant="outline" className="flex-1" onClick={() => navigate('/new-analysis')}>
+                <Target className="mr-2 h-4 w-4" />
+                Analyze Another Job
+              </Button>
+              <Button variant="outline" className="flex-1">
+                <Share className="mr-2 h-4 w-4" />
+                Share Analysis
+              </Button>
+            </div>
+          )}
         </motion.div>
       </div>
     </div>
