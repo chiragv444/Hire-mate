@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from .core.config import settings
-from .api import resume, job, analysis, analytics_new, onboarding
+from .api import resume, job, analysis, analytics_new, onboarding, cover_letter
 
 # Create FastAPI app
 app = FastAPI(
@@ -28,6 +28,7 @@ app.include_router(job.router, prefix="/api/v1")
 app.include_router(analysis.router, prefix="/api/v1")
 app.include_router(analytics_new.router, prefix="/api/v1")
 app.include_router(onboarding.router, prefix="/api/v1")
+app.include_router(cover_letter.router, prefix="/api/v1")
 
 @app.get("/")
 async def root():

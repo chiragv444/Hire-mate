@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -12,8 +12,12 @@ import {
   Check
 } from 'lucide-react';
 
-import { generateCoverLetter } from '@/lib/api';
-import { CoverLetter as CoverLetterType, JobDescription } from '@/types';
+import { 
+  generateCoverLetter, 
+  regenerateCoverLetter, 
+  getCoverLetter,
+  CoverLetterData 
+} from '@/lib/api-new';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,35 +27,39 @@ import { toast } from '@/hooks/use-toast';
 
 const CoverLetter = () => {
   const { id } = useParams();
-  const [coverLetter, setCoverLetter] = useState<CoverLetterType | null>(null);
+  const navigate = useNavigate();
+  const [coverLetter, setCoverLetter] = useState<CoverLetterData | null>(null);
+  const [jobDescription, setJobDescription] = useState<any>(null);
+  const [resumeData, setResumeData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEdited, setIsEdited] = useState(false);
 
-  // Mock job data - in real app, this would come from the analysis
-  const mockJobDescription: JobDescription = {
-    title: "Senior Frontend Developer",
-    company: "TechCorp Inc.",
-    location: "San Francisco, CA (Remote)",
-    skills: ["React", "TypeScript", "Next.js"],
-    keywords: ["frontend", "react", "typescript"]
-  };
-
-  const mockResumeText = "Experienced frontend developer with 5+ years...";
-
   useEffect(() => {
-    generateInitialCoverLetter();
+    if (id) {
+      loadCoverLetterData();
+    }
   }, [id]);
 
-  const generateInitialCoverLetter = async () => {
+  const loadCoverLetterData = async () => {
     try {
-      const result = await generateCoverLetter(mockJobDescription, mockResumeText);
-      setCoverLetter(result);
+      setIsLoading(true);
+      const result = await getCoverLetter(id!);
+      
+      if (result.success && result.cover_letter) {
+        setCoverLetter(result.cover_letter);
+        setJobDescription(result.job_description);
+        setResumeData(result.resume);
+      } else {
+        // If no cover letter exists, generate one
+        await generateInitialCoverLetter();
+      }
     } catch (error) {
       toast({
-        title: "Generation failed",
-        description: "Could not generate cover letter. Please try again.",
+        title: "Error loading data",
+        description: "Could not load cover letter data. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -59,16 +67,52 @@ const CoverLetter = () => {
     }
   };
 
+  const generateInitialCoverLetter = async () => {
+    try {
+      setIsGenerating(true);
+      const result = await generateCoverLetter(id!);
+      
+      if (result.success && result.cover_letter) {
+        setCoverLetter(result.cover_letter);
+        // Reload full data to get job description and resume
+        await loadCoverLetterData();
+      } else {
+        toast({
+          title: "Generation failed",
+          description: result.error || "Could not generate cover letter. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Generation failed",
+        description: "Could not generate cover letter. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleRegenerate = async () => {
     setIsRegenerating(true);
     try {
-      const result = await generateCoverLetter(mockJobDescription, mockResumeText);
-      setCoverLetter(result);
-      setIsEdited(false);
-      toast({
-        title: "Cover letter regenerated",
-        description: "A new version has been generated for you.",
-      });
+      const result = await regenerateCoverLetter(id!);
+      
+      if (result.success && result.cover_letter) {
+        setCoverLetter(result.cover_letter);
+        setIsEdited(false);
+        toast({
+          title: "Cover letter regenerated",
+          description: "A new version has been generated for you.",
+        });
+      } else {
+        toast({
+          title: "Regeneration failed",
+          description: result.error || "Could not regenerate cover letter. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Regeneration failed",
@@ -83,7 +127,7 @@ const CoverLetter = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Mock save operation
+      // Mock save operation - in real app, this would save to the database
       await new Promise(resolve => setTimeout(resolve, 1000));
       setIsEdited(false);
       toast({
@@ -102,9 +146,9 @@ const CoverLetter = () => {
   };
 
   const handleCopyToClipboard = async () => {
-    if (coverLetter?.content) {
+    if (coverLetter?.full_content) {
       try {
-        await navigator.clipboard.writeText(coverLetter.content);
+        await navigator.clipboard.writeText(coverLetter.full_content);
         toast({
           title: "Copied to clipboard",
           description: "Cover letter has been copied to your clipboard.",
@@ -120,12 +164,19 @@ const CoverLetter = () => {
   };
 
   const handleDownload = () => {
-    if (coverLetter?.content) {
-      const blob = new Blob([coverLetter.content], { type: 'text/plain' });
+    if (coverLetter?.full_content) {
+      // Create a formatted cover letter for download
+      const formattedContent = formatCoverLetterForDownload();
+      
+      const blob = new Blob([formattedContent], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Cover_Letter_${mockJobDescription.title.replace(/\s+/g, '_')}.txt`;
+      
+      const jobTitle = jobDescription?.title || 'Position';
+      const companyName = jobDescription?.company || 'Company';
+      a.download = `Cover_Letter_${jobTitle.replace(/\s+/g, '_')}_${companyName.replace(/\s+/g, '_')}.txt`;
+      
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -138,20 +189,74 @@ const CoverLetter = () => {
     }
   };
 
+  const formatCoverLetterForDownload = () => {
+    if (!coverLetter || !jobDescription) return '';
+    
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    let content = '';
+    
+    // Add header with date
+    content += `${currentDate}\n\n`;
+    
+    // Add company and address (if available)
+    if (jobDescription.company) {
+      content += `${jobDescription.company}\n`;
+    }
+    if (jobDescription.location) {
+      content += `${jobDescription.location}\n`;
+    }
+    content += '\n';
+    
+    // Add salutation
+    content += 'Dear Hiring Manager,\n\n';
+    
+    // Add cover letter content
+    content += coverLetter.full_content;
+    
+    // Add signature
+    content += '\n\nSincerely,\n';
+    if (resumeData?.parsed_data?.personal_info?.name) {
+      content += resumeData.parsed_data.personal_info.name;
+    } else {
+      content += '[Your Name]';
+    }
+    
+    return content;
+  };
+
   const handleContentChange = (newContent: string) => {
     if (coverLetter) {
-      setCoverLetter({ ...coverLetter, content: newContent });
+      setCoverLetter({ ...coverLetter, full_content: newContent });
       setIsEdited(true);
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isGenerating) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <LoadingSpinner size="lg" />
-          <h3 className="text-lg font-semibold">Generating your cover letter...</h3>
+          <h3 className="text-lg font-semibold">
+            {isGenerating ? 'Generating your cover letter...' : 'Loading cover letter...'}
+          </h3>
           <p className="text-muted-foreground">This may take a moment</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!coverLetter || !jobDescription) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h3 className="text-lg font-semibold">Cover letter not found</h3>
+          <p className="text-muted-foreground">Unable to load cover letter data</p>
+          <Button onClick={() => navigate(-1)}>Go Back</Button>
         </div>
       </div>
     );
@@ -163,10 +268,10 @@ const CoverLetter = () => {
       <header className="border-b bg-white/50 backdrop-blur-sm">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link to="/workspace">
+            <Link to={`/match-results/${id}`}>
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Workspace
+                Back to Match Results
               </Button>
             </Link>
             <Logo size="md" />
@@ -207,7 +312,7 @@ const CoverLetter = () => {
               <div>
                 <h1 className="text-3xl font-bold mb-2">Cover Letter</h1>
                 <p className="text-muted-foreground">
-                  AI-generated cover letter for {mockJobDescription.title} at {mockJobDescription.company}
+                  AI-generated cover letter for {jobDescription.title} at {jobDescription.company}
                 </p>
               </div>
               
@@ -219,8 +324,8 @@ const CoverLetter = () => {
             
             {coverLetter && (
               <p className="text-sm text-muted-foreground">
-                Generated on {new Date(coverLetter.generatedAt).toLocaleDateString()} at{' '}
-                {new Date(coverLetter.generatedAt).toLocaleTimeString()}
+                Generated on {new Date(coverLetter.generated_at).toLocaleDateString()} at{' '}
+                {new Date(coverLetter.generated_at).toLocaleTimeString()}
               </p>
             )}
           </motion.div>
@@ -257,7 +362,7 @@ const CoverLetter = () => {
                 
                 <CardContent>
                   <Textarea
-                    value={coverLetter?.content || ''}
+                    value={coverLetter.full_content || ''}
                     onChange={(e) => handleContentChange(e.target.value)}
                     className="min-h-[600px] resize-none font-mono text-sm leading-relaxed"
                     placeholder="Your cover letter will appear here..."
@@ -265,10 +370,10 @@ const CoverLetter = () => {
                   
                   <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
                     <span>
-                      {coverLetter?.content?.length || 0} characters
+                      {coverLetter.word_count || coverLetter.full_content?.length || 0} characters
                     </span>
                     <span>
-                      ~{Math.ceil((coverLetter?.content?.length || 0) / 250)} paragraphs
+                      ~{coverLetter.paragraph_count || Math.ceil((coverLetter.full_content?.length || 0) / 250)} paragraphs
                     </span>
                   </div>
                 </CardContent>
@@ -366,24 +471,40 @@ const CoverLetter = () => {
                 
                 <CardContent className="space-y-3">
                   <div>
-                    <h4 className="font-semibold">{mockJobDescription.title}</h4>
-                    <p className="text-sm text-muted-foreground">{mockJobDescription.company}</p>
-                    <p className="text-sm text-muted-foreground">{mockJobDescription.location}</p>
+                    <h4 className="font-semibold">{jobDescription.title}</h4>
+                    <p className="text-sm text-muted-foreground">{jobDescription.company}</p>
+                    <p className="text-sm text-muted-foreground">{jobDescription.location}</p>
                   </div>
                   
-                  <div>
-                    <h5 className="text-sm font-medium mb-2">Key Skills</h5>
-                    <div className="flex flex-wrap gap-1">
-                      {mockJobDescription.skills.map((skill, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-1 bg-muted text-xs rounded"
-                        >
-                          {skill}
-                        </span>
-                      ))}
+                  {jobDescription.parsed_skills && jobDescription.parsed_skills.length > 0 && (
+                    <div>
+                      <h5 className="text-sm font-medium mb-2">Key Skills</h5>
+                      <div className="flex flex-wrap gap-1">
+                        {jobDescription.parsed_skills.slice(0, 6).map((skill: string, index: number) => (
+                          <span
+                            key={index}
+                            className="px-2 py-1 bg-muted text-xs rounded"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  
+                  {jobDescription.experience_level && (
+                    <div>
+                      <h5 className="text-sm font-medium mb-1">Experience Level</h5>
+                      <p className="text-sm text-muted-foreground">{jobDescription.experience_level}</p>
+                    </div>
+                  )}
+                  
+                  {jobDescription.years_of_experience && (
+                    <div>
+                      <h5 className="text-sm font-medium mb-1">Years Required</h5>
+                      <p className="text-sm text-muted-foreground">{jobDescription.years_of_experience}</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
