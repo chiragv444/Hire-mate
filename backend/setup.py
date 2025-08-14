@@ -35,9 +35,9 @@ def main():
         sys.exit(1)
     
     # Download spaCy model
-    if not run_command("python -m spacy download en_core_web_sm", "Downloading spaCy model"):
-        print("❌ Failed to download spaCy model")
-        sys.exit(1)
+    # if not run_command("python -m spacy download en_core_web_sm", "Downloading spaCy model"):
+    #     print("❌ Failed to download spaCy model")
+    #     sys.exit(1)
     
     # Download NLTK data
     if not run_command("python -c \"import nltk; nltk.download('punkt'); nltk.download('stopwords')\"", "Downloading NLTK data"):
