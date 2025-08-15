@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from typing import Optional, Dict, Any
 import os
 from datetime import datetime
+import asyncio
 
 from ..core.auth import get_current_user
 from ..core.config import settings
@@ -13,6 +14,27 @@ from ..services.enhanced_resume_analyzer import enhanced_resume_analyzer
 from ..services.enhanced_job_parser import enhanced_job_parser
 from ..services.firebase_simple import simplified_firebase_service
 from ..services.firebase_storage import firebase_storage_service
+
+# Import the trained model with fallback
+try:
+    import sys
+    import os
+    # Add the model_integration directory to the Python path
+    model_integration_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_integration')
+    if model_integration_path not in sys.path:
+        sys.path.append(model_integration_path)
+    
+    from resume_job_matcher import ResumeJobMatcher
+    TRAINED_MODEL_AVAILABLE = True
+    print(f"✅ Trained model imported successfully from {model_integration_path}")
+except ImportError as e:
+    print(f"❌ Warning: Trained model not available: {e}")
+    TRAINED_MODEL_AVAILABLE = False
+    ResumeJobMatcher = None
+except Exception as e:
+    print(f"❌ Warning: Trained model import failed: {e}")
+    TRAINED_MODEL_AVAILABLE = False
+    ResumeJobMatcher = None
 from ..models.analytics import (
     CreateAnalyticsRequest,
     CreateAnalyticsResponse,
@@ -23,7 +45,8 @@ from ..models.analytics import (
     AnalyticsHistoryResponse,
     JobDescriptionData,
     ResumeData,
-    AnalysisResults
+    AnalysisResults,
+    TrainedModelResults
 )
 from ..models.resume_simple import (
     UploadResumeRequest,
@@ -441,6 +464,64 @@ async def perform_analysis(
                 status_code=400,
                 detail="Job description or resume content is missing"
             )
+        
+        # Start the trained model prediction asynchronously (fire and forget)
+        async def run_trained_model_prediction():
+            try:
+                # Check if trained model is available
+                if not TRAINED_MODEL_AVAILABLE or not ResumeJobMatcher:
+                    print("Trained model not available, skipping prediction")
+                    return
+                
+                # Initialize the trained model
+                matcher = ResumeJobMatcher()  # Will auto-detect the model path
+                
+                # Get resume summary and job summary
+                resume_summary = resume_data.get('parsed_data', {}).get('summary', '') or resume_raw_text[:1000]
+                job_summary = job_data.get('detailed_summary', '') or job_description_text[:1000]
+                
+                # Run prediction
+                trained_model_result = matcher.predict_fit_simple(resume_summary, job_summary)
+                
+                print(f"Raw trained model result: {trained_model_result}")
+                
+                # Ensure percentage is a proper number and format it correctly
+                percentage_value = trained_model_result.get('percentage', 0.0)
+                if isinstance(percentage_value, str):
+                    percentage_value = float(percentage_value)
+                
+                # Ensure percentage is between 0 and 100
+                percentage_value = max(0.0, min(100.0, percentage_value))
+                
+                print(f"Processed percentage: {percentage_value}")
+                
+                # Create validated trained model results
+                trained_model_data = TrainedModelResults(
+                    fit_level=trained_model_result.get('fit_level', 'Not Fit'),
+                    percentage=percentage_value,
+                    predicted_at=datetime.now().isoformat()
+                )
+                
+                # Store the trained model results in the database
+                update_data = {
+                    'trained_model_results': trained_model_data.dict()
+                }
+                
+                # Update analytics with trained model results
+                simplified_firebase_service.update_analytics(
+                    request.analytics_id,
+                    current_user['uid'],
+                    update_data
+                )
+                
+                print(f"Trained model prediction completed and stored: {trained_model_data.dict()}")
+                
+            except Exception as e:
+                print(f"Trained model prediction failed: {str(e)}")
+                # Don't fail the main request if trained model fails
+        
+        # Start the trained model prediction in background (fire and forget)
+        asyncio.create_task(run_trained_model_prediction())
         
         # Perform enhanced analysis using the enhanced resume analyzer
         if enhanced_resume_analyzer:
