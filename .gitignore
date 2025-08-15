@@ -41,3 +41,4 @@ backend/assets/resumes/
 *.safetensors
 *.bin
 *.h5
+backend/app/model_integration/fine_tuned_distilbert_model/
