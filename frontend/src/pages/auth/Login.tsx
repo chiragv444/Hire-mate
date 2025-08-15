@@ -90,6 +90,7 @@ const Login = () => {
                     type="email"
                     placeholder="Enter your email"
                     className="pl-10"
+                    defaultValue="demotest@yopmail.com"
                     {...register('email')}
                   />
                 </div>
@@ -107,6 +108,7 @@ const Login = () => {
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
                     className="pl-10 pr-10"
+                    defaultValue="123456789"
                     {...register('password')}
                   />
                   <button
