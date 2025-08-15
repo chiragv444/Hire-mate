@@ -38,3 +38,6 @@ __pycache__/
 
 # Resume files - sensitive data should not be tracked
 backend/assets/resumes/
+*.safetensors
+*.bin
+*.h5
