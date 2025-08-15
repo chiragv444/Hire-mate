@@ -85,6 +85,11 @@ const MatchResultsNew = () => {
               'Quantify your achievements with specific metrics'
             ]
           },
+          trained_model_results: {
+            fit_level: 'Possible Fit',
+            percentage: 72.5,
+            predicted_at: new Date().toISOString()
+          },
           status: 'completed',
           created_at: new Date().toISOString()
         };
@@ -218,6 +223,117 @@ const MatchResultsNew = () => {
             </Badge>
           </div>
         </div>
+
+        {/* Trained Model Results Block - Above Score Cards */}
+        {analytics.trained_model_results ? (
+          <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-sm">
+            {/* Debug info - remove this later */}
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+              <strong>Debug Info:</strong> Raw data: {JSON.stringify(analytics.trained_model_results)}
+            </div>
+            
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse"></div>
+                <h2 className="text-xl font-semibold text-blue-900">AI Trained Model Analysis</h2>
+              </div>
+              <Badge 
+                className={`text-sm px-3 py-1 ${
+                  analytics.trained_model_results.fit_level === 'Great Fit' ? 'bg-green-100 text-green-800 border-green-200' :
+                  analytics.trained_model_results.fit_level === 'Possible Fit' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                  'bg-red-100 text-red-800 border-red-200'
+                }`}
+              >
+                {analytics.trained_model_results.fit_level}
+              </Badge>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Confidence Score */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <span className="text-3xl font-bold text-blue-900">
+                    {(() => {
+                      const rawPercentage = analytics.trained_model_results.percentage;
+                      let displayPercentage = 0;
+                      
+                      if (typeof rawPercentage === 'number') {
+                        displayPercentage = rawPercentage;
+                      } else if (typeof rawPercentage === 'string') {
+                        displayPercentage = parseFloat(rawPercentage);
+                      }
+                      
+                      // If percentage is less than 1, it might be stored as decimal (0.011 = 1.1%)
+                      if (displayPercentage < 1 && displayPercentage > 0) {
+                        displayPercentage = displayPercentage * 100;
+                      }
+                      
+                      return displayPercentage.toFixed(1);
+                    })()}%
+                  </span>
+                  <span className="text-sm text-blue-700 font-medium">Confidence Score</span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-3">
+                  <div 
+                    className="h-3 bg-blue-500 rounded-full transition-all duration-500"
+                    style={{ 
+                      width: `${(() => {
+                        const rawPercentage = analytics.trained_model_results.percentage;
+                        let displayPercentage = 0;
+                        
+                        if (typeof rawPercentage === 'number') {
+                          displayPercentage = rawPercentage;
+                        } else if (typeof rawPercentage === 'string') {
+                          displayPercentage = parseFloat(rawPercentage);
+                        }
+                        
+                        // If percentage is less than 1, it might be stored as decimal (0.011 = 1.1%)
+                        if (displayPercentage < 1 && displayPercentage > 0) {
+                          displayPercentage = displayPercentage * 100;
+                        }
+                        
+                        return Math.min(displayPercentage, 100);
+                      })()}%` 
+                    }}
+                  ></div>
+                </div>
+                <p className="text-sm text-blue-600">
+                  AI-powered assessment using fine-tuned DistilBERT model
+                </p>
+              </div>
+              
+              {/* Model Details */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span className="text-sm text-blue-700">Prediction Time</span>
+                </div>
+                <p className="text-sm text-blue-600">
+                  {new Date(analytics.trained_model_results.predicted_at).toLocaleString()}
+                </p>
+                
+                <div className="flex items-center space-x-2 mt-4">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span className="text-sm text-blue-700">Analysis Method</span>
+                </div>
+                <p className="text-sm text-blue-600">
+                  Deep learning model trained on resume-job matching data
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-8 p-6 bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-xl">
+            <div className="flex items-center space-x-3">
+              <div className="w-4 h-4 bg-gray-400 rounded-full animate-pulse"></div>
+              <h2 className="text-xl font-semibold text-gray-700">AI Trained Model Analysis</h2>
+              <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Processing...</span>
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              The trained model is analyzing your resume and job description. Results will appear here shortly.
+            </p>
+          </div>
+        )}
 
         {/* Score Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

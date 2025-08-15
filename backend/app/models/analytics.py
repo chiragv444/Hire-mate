@@ -58,6 +58,12 @@ class AnalysisResults(BaseModel):
     total_skills_missing: Optional[int] = None
     skill_match_percentage: Optional[float] = None
 
+class TrainedModelResults(BaseModel):
+    """Trained model prediction results"""
+    fit_level: str = Field(description="Predicted fit level: 'Not Fit', 'Possible Fit', or 'Great Fit'")
+    percentage: float = Field(description="Confidence percentage (0-100)")
+    predicted_at: str = Field(description="ISO timestamp of when prediction was made")
+
 class Analytics(BaseModel):
     """Main analytics document - stores everything in one place"""
     id: Optional[str] = None
@@ -74,6 +80,9 @@ class Analytics(BaseModel):
     job_raw_data: Dict[str, Any] = {}
     job_detailed_summary: Optional[str] = None
     job_parsed_data: Dict[str, Any] = {}
+    
+    # Trained model results
+    trained_model_results: Optional[TrainedModelResults] = None
 
 # Request/Response Models
 

@@ -416,6 +416,67 @@ const MatchResults: React.FC<MatchResultsProps> = ({ isPublic = false }) => {
             </div>
           </div>
 
+          {/* Trained Model Results */}
+          {analytics.trained_model_results && (
+            <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse"></div>
+                  <h2 className="text-xl font-semibold text-blue-900">AI Trained Model Analysis</h2>
+                </div>
+                <Badge 
+                  className={`text-sm px-3 py-1 ${
+                    analytics.trained_model_results.fit_level === 'Great Fit' ? 'bg-green-100 text-green-800 border-green-200' :
+                    analytics.trained_model_results.fit_level === 'Possible Fit' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                    'bg-red-100 text-red-800 border-red-200'
+                  }`}
+                >
+                  {analytics.trained_model_results.fit_level}
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Confidence Score */}
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-3xl font-bold text-blue-900">
+                      {analytics.trained_model_results.percentage}%
+                    </span>
+                    <span className="text-sm text-blue-700 font-medium">Confidence Score</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-3">
+                    <div 
+                      className="h-3 bg-blue-500 rounded-full transition-all duration-500"
+                      style={{ width: `${analytics.trained_model_results.percentage}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-blue-600">
+                    AI-powered assessment using fine-tuned DistilBERT model
+                  </p>
+                </div>
+                
+                {/* Model Details */}
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                    <span className="text-sm text-blue-700">Prediction Time</span>
+                  </div>
+                  <p className="text-sm text-blue-600">
+                    {new Date(analytics.trained_model_results.predicted_at).toLocaleString()}
+                  </p>
+                  
+                  <div className="flex items-center space-x-2 mt-4">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                    <span className="text-sm text-blue-700">Analysis Method</span>
+                  </div>
+                  <p className="text-sm text-blue-600">
+                    Deep learning model trained on resume-job matching data
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Enhanced Analysis Summary */}
           <div className="mb-8">
             <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200">

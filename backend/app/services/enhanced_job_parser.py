@@ -1,18 +1,22 @@
 import os
-import json
 import re
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+import json
+import time
 import requests
+from datetime import datetime
+from typing import Dict, Any, Optional, List
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-import time
-from urllib.parse import urlparse, parse_qs
+from webdriver_manager.chrome import ChromeDriverManager
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+from langchain.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
 
 # Try to import langchain dependencies, fallback to None if not available
 try:
@@ -306,7 +310,12 @@ class EnhancedJobParser:
             chrome_options.add_argument(f"user-agent={self.headers['User-Agent']}")
             
             # Initialize driver
-            service = Service("/usr/local/bin/chromedriver")
+            driver_path = ChromeDriverManager().install()
+            # Ensure we get the actual chromedriver executable, not a text file
+            if driver_path.endswith('THIRD_PARTY_NOTICES.chromedriver'):
+                driver_path = driver_path.replace('THIRD_PARTY_NOTICES.chromedriver', 'chromedriver')
+            
+            service = Service(driver_path)
             driver = webdriver.Chrome(service=service, options=chrome_options)
             
             # Load the page
